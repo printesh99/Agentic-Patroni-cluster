@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local databases and runtime state
+*.db
+*.sqlite
+*.sqlite3
+server/metadata.db
+cutover_runs/
+models/*.joblib
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+kubeconfig*
+
+# Generated packages, evidence and logs
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.log
+evidence/
+*_evidence_*/
+*_rollout_*/
+
+# Frontend build dependencies and editors
+node_modules/
+frontend-build/node_modules/
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

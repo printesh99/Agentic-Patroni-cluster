@@ -1,0 +1,1 @@
+function AppMonBusinessScreen(props){return React.createElement(BizMonDashboard,{dashboardId:"business",timeRange:props.timeRange,lastRefresh:props.lastRefresh})}window.AppMonBusinessScreen=AppMonBusinessScreen;

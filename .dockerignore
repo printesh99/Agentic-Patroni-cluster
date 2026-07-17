@@ -1,0 +1,48 @@
+# Keep the OpenShift binary build context lean.
+# The Dockerfile needs: requirements.txt, app/, static/, tools/, infra/, vendor/,
+# and top-level *.sh operational check scripts.
+# vendor/ holds the baked fastembed model (~87MB) — must ship in the image.
+!vendor/
+
+# Node build tooling and its dependencies (frontend assets are pre-built)
+frontend-build/node_modules/
+node_modules/
+
+# v31 replaced these seeded overlay sources with viz_core.js + live_charts.js.
+# They remain locally only for v30 comparison and must not ship in the image.
+static/module_charts.js
+static/module_charts2.js
+static/module_charts3.js
+static/module_charts4.js
+static/sql_insight2.js
+static/drilldowns.js
+
+# Python caches / bytecode / test suites
+**/__pycache__/
+**/tests/
+*.pyc
+
+# Local build/backup artifacts
+index.html.babel-backup
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Docs, references, infra-only assets not needed in the runtime image
+*.md
+reference/
+grafana-dashboards/
+prometheus/
+deploy/
+alembic/
+alembic.ini
+policy.yaml
+hplus_gen2.html
+hbz-front-end-integration/
+sql/
+
+# VCS / editor
+.git/
+.vscode/
+.idea/

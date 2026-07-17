@@ -1,0 +1,24 @@
+// Application Monitoring — Service CRM/Jobs/Kafka + API Gateway (AM3)
+// Thin wrapper over AppMonDomainView with service-schema quick-filters.
+
+function AppMonServiceScreen(props) {
+  return (
+    <AppMonDomainView
+      domains={[
+        { slug: "service",     label: "Service (CRM/Jobs/Kafka)", sub: "category = SERVICE" },
+        { slug: "api_gateway", label: "API Gateway",              sub: "schema = api_gateway" }
+      ]}
+      schemaChips={[
+        { value: "crm_slim",           label: "CRM" },
+        { value: "kafka_recovery",     label: "Kafka" },
+        { value: "chatbot",            label: "Chatbot" },
+        { value: "profile_management", label: "Profile" },
+        { value: "banking_admin",      label: "Banking Admin" },
+        { value: "dashboard",          label: "Dashboard" }
+      ]}
+      lastRefresh={props.lastRefresh}
+      timeRange={props.timeRange}/>
+  );
+}
+
+window.AppMonServiceScreen = AppMonServiceScreen;

@@ -1,0 +1,50 @@
+defaults:
+  replication_lag_seconds:
+    warning: 60
+    critical: 300
+  wal_pvc_used_percent:
+    warning: 75
+    critical: 85
+    emergency: 95
+  pgdata_pvc_used_percent:
+    warning: 75
+    critical: 85
+    emergency: 95
+  active_connections_percent:
+    warning: 75
+    critical: 85
+    emergency: 95
+  pgbouncer_pool_used_percent:
+    warning: 75
+    critical: 85
+    emergency: 95
+  backup_duration_minutes:
+    warning: 60
+    critical: 120
+  archive_failed_count:
+    warning: 1
+    critical: 1
+  deadlocks_per_min:
+    warning: 1
+    critical: 5
+  locks_waiting_count:
+    warning: 5
+    critical: 20
+  long_txn_count:
+    warning: 3
+    critical: 10
+  idle_in_transaction_count:
+    warning: 10
+    critical: 25
+  logical_slot_inactive_count:
+    warning: 1
+    critical: 1
+  replication_slot_retained_wal_mb:
+    warning: 20480
+    critical: 51200
+
+clusters:
+  prod:
+    env: prod
+    region: uae
+    dc: dc1
