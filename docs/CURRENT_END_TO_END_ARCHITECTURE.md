@@ -587,14 +587,13 @@ Deployment lessons now encoded in operations:
 
 ## 19. Current known limitations and next architecture stages
 
-1. **Identity provider:** No verified OpenShift OAuth proxy or signed JWT issuer/audience/group/MFA contract is available. Trusted headers remain disabled.
-2. **Token rotation:** pg_profile token is Secret-backed but not rotated until external consumers are known or dual-token transition support is added.
-3. **Approval normalization:** Current audit storage is not the final normalized multi-party approval/quorum design.
-4. **Operation centralization:** Legacy cutover and compatibility mutations require one typed central pipeline.
-5. **Evidence conversion:** Remaining collectors should emit immutable incident-window evidence items rather than only mutable/current views.
-6. **Action hashing:** Future action plans require immutable canonical action hashes, expiry, rejection and role-qualified quorum.
-7. **Controlled release:** Only low-risk L3 actions may be considered after prolonged replay/SHADOW validation. Patroni L4 and all L5/forced failover remain disabled.
-8. **Backup gate:** HA-controlled operations must not be enabled until pgBackRest backup and recovery readiness are independently verified.
+1. **Identity deployment:** JWT and secret-bound trusted-proxy validation are implemented, but deployment-specific issuer/key/proxy configuration must still be supplied and verified. Defaults remain disabled.
+2. **Token rollout:** Dual current/next constant-time token acceptance is implemented; actual rotation waits for the external-consumer inventory.
+3. **Approval control:** Approvals and rejections are normalized per subject and bound to an immutable canonical SHA-256 action plan with expiry and role-qualified quorum.
+4. **Operation centralization:** API jobs pass the typed central action-control service. Vendored cutover compatibility code is retained but L4/L5 execution is prohibited by central policy.
+5. **Evidence conversion:** Agentic Prometheus, Loki, PostgreSQL and Patroni collector outputs persist as redacted, hashed, append-only incident-window items; partial sources force the bundle non-actionable.
+6. **Controlled release:** Only allowlisted L3 actions can become eligible, and only with current SHADOW and backup/recovery evidence. Patroni L4 and all L5/forced failover remain prohibited.
+7. **Operational attestations:** Senior roles can record hashed, expiring identity, SHADOW and backup/recovery evidence. No repository code fabricates these external facts; absent or expired proof fails closed.
 
 ---
 

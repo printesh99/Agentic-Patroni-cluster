@@ -2,7 +2,7 @@
 
 ## Current safe state
 
-`TRUSTED_IDENTITY_HEADERS=false`. Privileged Agentic routes reject unauthenticated requests. Do not enable trusted headers directly on an edge-terminated Route because clients could supply the same header names.
+`TRUSTED_IDENTITY_HEADERS=false`. Privileged Agentic routes reject unauthenticated requests. If enabled, headers are accepted only when the source address is in `TRUSTED_PROXY_CIDRS` and `X-Trusted-Proxy-Secret` matches `TRUSTED_PROXY_SHARED_SECRET` in constant time. Signed JWT mode validates the configured issuer, audience, algorithm, signature, expiry, issued-at and subject, with optional required ACR.
 
 ## Required OAuth/JWT contract
 
@@ -23,7 +23,7 @@ Do not rotate until external consumers are inventoried. Namespace workload disco
 
 Recommended no-outage rotation:
 
-1. Add application support for current and next token keys using constant-time comparison.
+1. Application support for `AGENTIC_SERVICE_TOKEN` and `AGENTIC_SERVICE_TOKEN_NEXT` is implemented using constant-time comparison.
 2. Generate the next token through the approved secret-management system.
 3. Distribute only the next token to known consumers and verify access/audit evidence.
 4. Remove acceptance of the old token after the migration window.

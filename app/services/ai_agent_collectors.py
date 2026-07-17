@@ -207,3 +207,24 @@ def collect_all(cluster_name: str | None = None, database_name: str | None = Non
         "postgres": collect_sql_stats(database_name),
         "patroni": collect_patroni(),
     }
+
+
+def collect_and_persist(db, *, incident_id: int | None = None, database_name: str | None = None,
+                        lookback_minutes: int = 30):
+    """Capture every agent input as an append-only incident-window evidence bundle."""
+    from datetime import datetime, timedelta, timezone
+    from . import evidence_service
+    now = datetime.now(timezone.utc)
+    payloads = collect_all(database_name=database_name, lookback_minutes=lookback_minutes)
+    bundle = evidence_service.create_bundle(db, incident_id=incident_id,
+        window_start=now - timedelta(minutes=lookback_minutes), window_end=now)
+    for name in ("metrics", "loki", "postgres", "patroni"):
+        payload = payloads[name]
+        warnings = list(payload.get("warnings") or []) if isinstance(payload, dict) else []
+        available = bool(payload.get("available")) if isinstance(payload, dict) else False
+        evidence_service.append_item(db, bundle, source_type=name, source_name=name,
+            collector_name=f"agentic-{name}", collector_version="v2", payload=payload,
+            source_timestamp=now, warnings=warnings, partial=not available)
+        if not available:
+            bundle.partial = True; bundle.quality_status = "PARTIAL"; bundle.action_ready = False
+    return bundle

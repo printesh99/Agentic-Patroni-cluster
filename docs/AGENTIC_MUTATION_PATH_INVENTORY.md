@@ -11,6 +11,8 @@ All agentic execution is disabled by default. `SHADOW` and `ADVISORY` never muta
 | Generic jobs | `api_actions.py` → `jobs.submit` | Callable executor | Central policy blocks; missing roles default to none |
 | Cutover API | `api_actions.py`, `cutover/routes.py` | Patroni cutover | Central jobs policy for API path; vendored compatibility runner requires later centralization |
 | Job registry | `jobs.py` | Invokes supplied executor | Central agentic policy, legacy mutation flag, RBAC |
-| Cutover runner | `cutover/runner.py`, `cutover/wrapper.py` | Shell/Patroni/OpenShift operations | Compatibility path; not exposed as enabled agentic execution; requires later centralization |
+| Cutover runner | `cutover/runner.py`, `cutover/wrapper.py` | Shell/Patroni/OpenShift operations | Compatibility path remains disabled; API jobs enter the typed central control policy and L4/L5 are categorically denied |
+
+Every executable API job now passes `action_control_service`, which requires a typed executor, a canonical non-expired action plan, normalized subject-distinct approvals, CONTROLLED policy flags, current SHADOW validation evidence and—at L3—current backup/recovery evidence. Only allowlisted L3 actions (`analyze`, `cancel_backend`, `refresh_metadata`) can pass. L4/L5 remain prohibited.
 
 No service account or OpenShift mutation permission is required for the disabled/shadow foundation. Read-only collectors retain their existing access requirements.

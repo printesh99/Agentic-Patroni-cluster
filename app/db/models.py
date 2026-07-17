@@ -225,6 +225,43 @@ class AiActionAudit(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class AiActionPlan(Base):
+    __tablename__ = "ai_action_plan"
+    plan_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    action_audit_id: Mapped[int] = mapped_column(ForeignKey("ai_action_audit.id"), nullable=False, unique=True)
+    canonical_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    canonical_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AiActionApproval(Base):
+    __tablename__ = "ai_action_approval"
+    __table_args__ = (UniqueConstraint("action_audit_id", "subject_id", name="uq_action_approval_subject"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action_audit_id: Mapped[int] = mapped_column(ForeignKey("ai_action_audit.id"), nullable=False, index=True)
+    plan_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    roles: Mapped[list] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OperationalReadinessEvidence(Base):
+    __tablename__ = "operational_readiness_evidence"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    inventory_id: Mapped[int] = mapped_column(ForeignKey("cluster_inventory.id"), nullable=False, index=True)
+    gate_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 
 class AiDbaModelRun(Base):
     __tablename__ = "ai_dba_model_run"

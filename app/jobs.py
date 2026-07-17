@@ -79,7 +79,15 @@ def submit(kind: str, payload: dict[str, Any], *, actor: str = "dba",
         _audit(kind, actor, False, False, "forbidden by RBAC")
     else:
         try:
-            result = executor() if executor else None
+            from .db.session import SessionLocal
+            from .services import action_control_service, inventory_service
+            with SessionLocal() as db:
+                inv = inventory_service.resolve(db)
+                result = action_control_service.execute(db=db, inventory_id=inv.id,
+                    action_level=str(payload.get("action_level") or "L5").upper(),
+                    action_type=str(payload.get("action_type") or kind),
+                    action_id=int(payload["action_id"]) if payload.get("action_id") is not None else None,
+                    plan_sha256=str(payload.get("plan_sha256") or "") or None, executor=executor)
             job["state"] = job["status"] = "completed"
             job["result"] = result
             job["message"] = "Executed."

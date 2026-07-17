@@ -15,7 +15,7 @@ python3 -m compileall app
 pytest -q
 ```
 
-Current suite: 73 tests.
+Current suite: 77 tests.
 
 ## Container
 
@@ -41,4 +41,4 @@ PGC_ALLOW_MUTATIONS=0
 TRUSTED_IDENTITY_HEADERS=false
 ```
 
-Do not enable mutation or trusted-header flags without completing the security, approval, identity and recovery-readiness gates documented under `docs/`.
+Trusted proxy headers additionally require a shared proxy secret and trusted source CIDR. Signed JWT mode pins issuer, audience, algorithm and key, and can require an ACR claim. Mutations remain fail-closed until hashed plans, normalized quorum approvals, current SHADOW evidence and verified backup/recovery evidence all pass.

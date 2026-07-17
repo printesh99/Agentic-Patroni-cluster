@@ -12,6 +12,9 @@ apscheduler
 prometheus-client
 pgvector
 anthropic
+PyJWT[crypto]>=2.9
+pytest>=8.0
+pytest-asyncio>=0.24
 # Pinned: the all-MiniLM-L6-v2 model is baked into the image (vendor/fastembed_cache)
 # using this exact version's HF-hub cache layout. Keep in sync if the vendored
 # cache is regenerated. See app/ai/embeddings.py + Dockerfile.
