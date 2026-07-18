@@ -1,263 +1,299 @@
 # AI Assistant Solution Design
 
-Date: 2026-07-17
-Environment: UAT UAE PostgreSQL HA on OpenShift
-Application: Agentic Patroni Cluster / Object Monitor
-Scope: solution architecture and acceptance contracts for the defects documented in `AI_ASSISTANT_CURRENT_SETUP_PROBLEM_ANALYSIS_20260717.md`
-Status: proposed for implementation under `AI_ASSISTANT_NEXT_IMPLEMENTATION_MARKER_20260717.md`
+Date: 2026-07-17  
+Revision: 2 (review corrections incorporated 2026-07-18)  
+Environment: UAT UAE PostgreSQL HA on OpenShift  
+Application: Agentic Patroni Cluster / Object Monitor  
+Scope: architecture and acceptance contracts for the defects in `AI_ASSISTANT_CURRENT_SETUP_PROBLEM_ANALYSIS_20260717.md`  
+Status: implementation-ready design, subject to the phase gates in `AI_ASSISTANT_NEXT_IMPLEMENTATION_MARKER_20260717.md`
 
 ## Executive summary
 
-The problem analysis established that the assistant fails for structural reasons: single-winner first-match routing, absent multi-intent composition, missing collectors on several operational domains, no typed contracts between intent, tool and evidence, and a log-centric fallback compensating for gaps it cannot safely fill.
+Replace the single-winner `route()` decision with a typed **Plan -> Execute -> Validate -> Compose** pipeline. Existing deterministic tools remain the execution layer. The design requires no orchestration framework or model replacement.
 
-This design replaces the single `route()` decision with a four-stage pipeline — **Plan → Execute → Validate → Compose** — while preserving every existing deterministic tool as the execution layer. No model upgrade and no orchestration framework is assumed; the pipeline is plain typed Python and can later be hosted inside LangGraph without changing its contracts.
+The assistant remains read-only. Operational claims must come from typed, immutable evidence. A model may classify ambiguous requests or summarize logs, but it may not select arbitrary tools, provide evidence values, authorize operations, or add unsupported factual claims.
 
-Design principles, in order of precedence:
+## Design principles
 
-1. Deterministic evidence beats generated text. The model never selects tools by free generation and never supplies field values.
-2. Every intent has a typed contract. An answer that does not satisfy its contract must say so in machine-readable form.
-3. Combined questions produce combined plans. No detected intent is ever discarded.
-4. Unsupported questions produce `insufficient_evidence`, never irrelevant evidence presented as an answer.
-5. Evidence is untrusted input. Safety behaviour is a first-class intent with a fixed response contract.
-6. The evaluator is never weakened to go green. Golden-case changes require adjudication.
+1. Deterministic evidence takes precedence over generated text.
+2. Detect and retain every supported intent in a combined question.
+3. Validate every intent against a typed evidence contract.
+4. Represent unavailable, stale, partial, and unsupported evidence explicitly.
+5. Bind every operational claim to evidence; narrative polish must not create facts.
+6. Treat user text, database content, logs, metrics labels, and retrieved documents as untrusted data.
+7. Detect topology changes so concurrently collected facts are not presented as one consistent snapshot when a failover occurred.
+8. Keep evaluation expectations independently reviewed; runtime output must never define its own oracle.
 
 ## Target architecture
 
 ```mermaid
 flowchart TD
-    A[POST /api/v1/assistant/ask] --> B[Planner<br/>detect ALL intents<br/>build typed QueryPlan]
-    B -->|safety intent detected| S[Safety responder<br/>fixed contract, audit record]
-    B --> C[Executor<br/>run planned collectors<br/>concurrently with timeouts]
-    C --> D[Validator<br/>per-section contract check:<br/>required fields, freshness,<br/>COMPLETE / PARTIAL / MISSING]
-    D --> E[Composer<br/>one answer, per-section<br/>source attribution and gaps]
-    E --> F[Response schema v2<br/>status, sections, missing_evidence,<br/>sources_checked, audit]
-    C -.->|logs_* / rca_* intents only| G[log_ai.ask<br/>log + RAG + model synthesis]
-    G --> D
+    A[POST /api/v1/assistant/ask] --> B[Safety preprocessor<br/>separate instruction from quoted evidence]
+    B --> C[Planner<br/>detect all intents<br/>build typed QueryPlan]
+    C --> D[Executor<br/>bounded concurrent collectors<br/>timeouts and cancellation]
+    D --> E[Validator<br/>contracts, freshness,<br/>topology consistency]
+    E --> F[Deterministic composer<br/>claims linked to evidence]
+    F --> G[Optional constrained narrative renderer]
+    G --> H[Post-render claim validator]
+    H --> I[Response schema v2]
+    C -. logs and RCA only .-> J[log_ai.ask]
+    J --> E
 ```
 
-The stages live in a new package, keeping `app/assistant_tools.py` tool functions as the registry:
+Safety detection annotates or filters the plan; it does not automatically discard a separable factual request. An unsafe request with no separable factual portion returns the fixed safety response without executing collectors.
 
-```
+New package layout:
+
+```text
 app/assistant/
-    __init__.py
-    planner.py        # intent detection: lexicon -> token scoring -> constrained classifier
-    contracts.py      # per-intent Pydantic contracts and canonical source registry
-    executor.py       # concurrent tool execution with per-source timeouts and fault ports
-    composer.py       # section merging, attribution, gap reporting
-    safety.py         # injection detection and the fixed safety response
-    schema.py         # response schema v2 (backward compatible)
+    planner.py
+    contracts.py
+    evidence.py
+    executor.py
+    validator.py
+    composer.py
+    safety.py
+    schema.py
+    transports.py
 ```
 
-`app/api_ops.py` remains the endpoint. `app/log_ai.py` remains the handler for the `logs_*` and `rca_*` intent families only.
+`app/api_ops.py` remains the endpoint, `app/assistant_tools.py` remains the deterministic tool registry during migration, and `app/log_ai.py` is limited to `logs_*` and `rca_*` synthesis.
+
+## Authoritative status model
+
+Do not reuse one enum for different layers.
+
+```python
+class OverallStatus(str, Enum):
+    ANSWERED = "answered"
+    PARTIAL = "partial"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    SOURCE_UNAVAILABLE = "source_unavailable"
+    UNSAFE_REQUEST = "unsafe_request"
+    GENERATION_FAILED = "generation_failed"
+
+class SectionStatus(str, Enum):
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    MISSING = "missing"
+    STALE = "stale"
+    SOURCE_UNAVAILABLE = "source_unavailable"
+    INCONSISTENT_SNAPSHOT = "inconsistent_snapshot"
+```
+
+Overall status is derived deterministically from section states. One successful and one failed section yields `partial`; all required sources unavailable yields `source_unavailable`; no collector for the requested domain yields `insufficient_evidence`.
 
 ## Response schema v2
 
-Backward compatible: the existing `answer`, `model`, `intent` and `evidence` keys remain. New keys:
+Existing `answer`, `model`, `intent`, and `evidence` keys remain during a documented compatibility period. The legacy `intent` is the first intent in a stable, versioned priority table and is deprecated; consumers must migrate to `intents`.
 
 ```json
 {
   "answer": "...",
-  "status": "answered | partial | insufficient_evidence | source_unavailable | unsafe_request",
+  "status": "answered",
   "intents": ["replication_physical", "wal_archiver"],
   "sections": [
     {
       "intent": "replication_physical",
       "status": "complete",
-      "source": "pg_stat_replication",
-      "evidence_ids": ["..."],
-      "collected_at": "2026-07-17T09:41:02Z",
-      "freshness_seconds": 3
-    },
-    {
-      "intent": "wal_archiver",
-      "status": "complete",
-      "source": "pg_stat_archiver",
-      "evidence_ids": ["..."]
+      "evidence_ids": ["ev-1"],
+      "missing_fields": [],
+      "source_errors": []
     }
   ],
+  "evidence_items": [
+    {
+      "id": "ev-1",
+      "contract": "PhysicalReplicationEvidence/v1",
+      "source": "pg_stat_replication",
+      "collected_at": "2026-07-17T09:41:02Z",
+      "collection_started_at": "2026-07-17T09:41:01Z",
+      "freshness_seconds": 3,
+      "cluster_identity": {
+        "scope": "uat-pgcluster-uae-ha",
+        "system_identifier": "7637033912937340986",
+        "primary_member": "uat-pgcluster-uae-dc1-z9qh-0",
+        "timeline": 7
+      },
+      "payload": {}
+    }
+  ],
+  "claims": [
+    {"id": "claim-1", "text": "The standby is streaming.", "evidence_ids": ["ev-1"]}
+  ],
   "missing_evidence": [],
-  "sources_checked": ["pg_stat_replication", "pg_stat_archiver"],
+  "sources_checked": ["pg_stat_replication"],
   "unsupported_claims": [],
-  "safety": {"read_only": true, "mutation_executed": false},
-  "audit": {"...": "existing audit metadata unchanged"}
+  "safety": {"read_only": true, "mutation_executed": false, "injection_detected": false},
+  "audit": {}
 }
 ```
 
-The legacy single `intent` string is set to the highest-priority planned intent so existing consumers keep working.
+Evidence items are immutable after validation. Sensitive payload fields are redacted before persistence or response serialization. Claims without valid evidence references are removed and recorded in `unsupported_claims`; the affected section cannot remain `complete`.
 
-## Solution per problem
+## Planning and intent detection
 
-### Problem 1 — single-intent, first-match routing
+The planner collects all candidates using:
 
-Replace the early-return dispatch in `route()` (app/assistant_tools.py:1100) with a planner that collects **all** matching intents into a `QueryPlan`.
+1. A reviewed DBA phrase lexicon.
+2. Token scoring with phrase specificity and token consumption.
+3. A constrained classifier only when deterministic layers are empty or ambiguous.
 
-- Each intent candidate is scored by specificity: matched multi-word domain phrases outrank single generic tokens; longer phrases outrank shorter; exact GUC names outrank everything in the config domain (preserving the existing `sync*` fix).
-- The generic `log` token may select `logs_errors` only when no DBA-specific phrase has claimed it. `"archive log"`, `"archive log no"`, `"archive log number"`, `"wal segment"`, `"transaction log"` map to `wal_archiver` in the lexicon and consume the token.
-- Tool precedence stops being hidden business logic: the plan lists every intent with its score, and the executor runs all of them.
+Classifier output is validated against a closed intent enum with `extra="forbid"`. It can name intents only. Invalid output is discarded. Exact GUC names take precedence in the configuration domain. Generic `log` cannot claim phrases such as `archive log`, `WAL segment`, or `transaction log`.
 
-Acceptance: the sentence "Show physical replication lag and the current archive log number" plans exactly `{replication_physical, wal_archiver}`, never `logs_errors`; all 20 `archive_and_lag` corpus variants pass; no regression in the currently passing categories.
+The question "Show physical replication lag and the current archive log number" must plan exactly `replication_physical` and `wal_archiver`. In the answer, ambiguous user wording is normalized to the precise WAL terms below.
 
-### Problem 2 — lexical matching is not DBA intent
+## WAL terminology and contract
 
-Three detection layers, cheapest first:
-
-1. **Lexicon table** (`planner.py`): explicit DBA phrase → intent mappings, including abbreviations and hyphenated forms. Data, not code; reviewed like configuration.
-2. **Token scoring**: the existing tokenized matching, retained, but producing scored candidates instead of a first winner.
-3. **Constrained classifier**: only when layers 1–2 are empty or ambiguous, ask the model to classify — output validated against the closed intent enum (JSON schema, `extra="forbid"`). The classifier can only *name intents*; it can never call tools or produce answer text. Typos such as `shared_bufer` resolve here and are then executed by the same deterministic tools.
-
-Acceptance: typo variants in configuration, connections, locks, vacuum, readiness and WAL archive categories route to the deterministic tool, not the log fallback; classifier output failing schema validation is discarded and the request proceeds as unmatched.
-
-### Problem 3 — log-centric fallback doing two jobs
-
-Split the fallback's two jobs:
-
-- `log_ai.ask()` handles exactly the `logs_*` and `rca_*` intent families.
-- Any other question with no deterministic collector returns `status=insufficient_evidence` with `missing_evidence` naming the domain — never a Loki summary.
-
-Close the collector gaps behind the four 0/20 categories:
-
-| Category | New collector composition | Authoritative sources |
-| --- | --- | --- |
-| Memory | Kubernetes requests/limits + container working-set usage + PostgreSQL memory settings | kubernetes_api, prometheus (`container_memory_working_set_bytes` scoped by namespace/pod/container), pg_settings (`shared_buffers`, `work_mem`, `maintenance_work_mem`, `effective_cache_size`) |
-| Metrics (trends) | Prometheus **range** queries with min/max/avg/p95 and rate of change for the requested window | prometheus_range |
-| Storage | Database sizes + WAL directory usage + PVC capacity/usage | pg_database_size, pg_wal, kubelet_volume_stats |
-| Slow queries | pg_profile interval or pg_stat_statements **delta** (never lifetime cumulative totals as incident attribution) | pg_profile, pg_stat_statements_delta |
-
-Acceptance: memory, metrics, storage and slow-query categories each reach ≥ 18/20 with correct source attribution; a question in a domain that still has no collector returns `insufficient_evidence`, not `logs_errors`.
-
-### Problem 4 — missing typed contracts
-
-`contracts.py` defines one Pydantic contract per intent:
-
-```
-intent -> required tools -> required fields -> freshness rules -> answer obligations
-```
-
-Examples that directly cover the critical defect:
+The assistant must never treat a WAL segment as an Oracle-style archive-log sequence number.
 
 ```python
-class PhysicalReplicationEvidence(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    standby_name: str            # Patroni member identity
-    client_addr: str | None
-    state: str                   # streaming / catchup / ...
-    sync_state: str              # sync / async / quorum
-    sent_lsn: str
-    write_lsn: str
-    flush_lsn: str
-    replay_lsn: str
-    total_lag_bytes: int
-    replay_lag_seconds: float | None
-    collected_at: datetime
-
 class WalArchiverEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    current_wal_segment: str     # pg_walfile_name(pg_current_wal_lsn())
+    current_wal_segment: str
+    current_wal_lsn: str
     last_archived_wal: str | None
     last_archived_time: datetime | None
+    archived_count: int
     failed_count: int
     last_failed_wal: str | None
     last_failed_time: datetime | None
     collected_at: datetime
 ```
 
-Each contract also declares its **canonical source name** (single registry shared with the evaluator), a freshness TTL, and the answer obligations (which fields must appear in the rendered text). The validator marks each section `complete`, `partial` or `missing` at runtime, so a partial answer can never present itself as complete. A switchover-readiness contract enumerates the minimum checks required before the word "ready" may be used, aligned with the platform precheck policy.
+`current_wal_segment` comes from `pg_walfile_name(pg_current_wal_lsn())` on the verified primary. It is not claimed to be archived. `last_archived_wal` and archive success/failure fields come from `pg_stat_archiver` and are labelled separately.
 
-Acceptance: every deterministic tool returns a contract instance; a tool returning a raw dict fails CI; an answer omitting a required field is automatically `status=partial` with the field listed.
+## Snapshot consistency during failover
 
-### Problem 5 — multi-source facts are not composed
+Each collector records collection start/end plus Patroni scope, PostgreSQL system identifier, primary member, and timeline when applicable. The executor captures a topology fence before and after a composed collection.
 
-`executor.py` runs all planned collectors concurrently (`asyncio.gather` under a bounded semaphore, per-source timeout). `composer.py` renders one answer with a section per intent, each carrying its own source attribution, and reports per-section failures without discarding the sections that succeeded.
+If the primary or timeline changes:
 
-Composable plans this immediately enables: switchover readiness (Patroni topology + physical replication + pod readiness + archive/backup health), memory capacity (limits + usage + settings), archive-plus-lag, storage risk (sizes + WAL + PVC + growth).
+- retry idempotent collectors once against the new primary when the request deadline permits;
+- otherwise mark affected sections `inconsistent_snapshot`;
+- never combine pre- and post-failover values into a confident cluster-wide conclusion.
 
-Latency: deterministic sections run in parallel and the model is invoked only for `logs_*`/`rca_*` synthesis or narrative polish, so the composed path targets P95 ≤ 3,000 ms against the current 8,670 ms.
+The response is a bounded-time observation, not a transactional snapshot across Kubernetes, PostgreSQL, Prometheus, and Loki.
 
-Acceptance: a two-intent question returns two sections; killing one source in the harness yields one `complete` section and one `source_unavailable` section in the same response.
+## Collector contracts
 
-### Problem 6 — physical and logical replication share surfaces
+Every deterministic collector returns a versioned Pydantic contract, never an untyped dictionary. Contracts define required fields, canonical source names, freshness TTL, redaction rules, and answer obligations.
 
-Extract the classification already implemented in the live-cluster path into one shared service:
+Physical and logical walsenders are classified through one shared function matching Patroni member identities. Logical retained WAL must never be rendered as physical HA replay lag.
 
-```python
-def classify_walsenders(patroni_members, pg_stat_replication_rows) -> WalsenderClassification:
-    """physical HA standbys (matched to Patroni member names) vs logical walsenders"""
-```
+New domain collectors:
 
-All replication-related contracts accept only classified rows. Logical retained WAL can never be rendered as HA replay lag because the types are distinct.
+| Domain | Required composition | Important validity rules |
+| --- | --- | --- |
+| Memory | Kubernetes requests/limits, cgroup working set/RSS, PostgreSQL memory settings | Report headroom and OOM pressure; model `work_mem` as concurrency-sensitive exposure, not fixed allocation |
+| Metrics trends | Prometheus range queries | State window, step, sample count, missing samples and reset handling; calculate min/max/avg/p95 and rate only when valid |
+| Storage | Database sizes, WAL filesystem usage, PVC capacity/used/available, growth series | Distinguish provisioned capacity from filesystem usage and database logical size |
+| Slow queries | pg_profile interval or persisted `pg_stat_statements` snapshots | Reject deltas spanning `stats_reset`, restart, invalid interval, or incompatible query identity |
 
-Acceptance: a single implementation with its own test suite; grep proves no other module re-implements the member-name matching.
+Slow-query snapshots require durable baseline metadata: server identity, database OID, query ID, snapshot timestamps, `stats_reset`, PostgreSQL start time, and extension version. Lifetime cumulative totals may be shown as totals but never attributed to a requested incident window.
 
-### Problem 7 — safety behaviour is implicit
+## Composition and model boundaries
 
-`safety.py` adds a first-class `safety_injection` intent with a **fixed, non-generative** response that states, verbatim as policy requires:
+Operational sections use deterministic templates by default. A model may improve wording only from a closed claim set. After rendering, the claim validator must prove that each factual statement maps to evidence IDs and contains no altered numeric value, identity, status, or timestamp. Failure falls back to deterministic text and records `generation_failed` in audit metadata without losing valid evidence.
 
-- database content and log content are untrusted evidence;
+`log_ai.ask()` handles only log and RCA intent families. Unsupported domains return `insufficient_evidence`, never a generic Loki summary.
+
+## RCA timeline and reasoning contract
+
+RCA requests use the same planner, evidence contracts, snapshot metadata, and claim grounding as factual requests, with an additional chronological correlation stage. Events from PostgreSQL, Patroni, Kubernetes, Prometheus, Loki, and backup sources are normalized to UTC while retaining the original timestamp, source clock, ingestion timestamp, and uncertainty where known.
+
+The RCA response separates:
+
+- **facts**: directly supported observations with evidence IDs and timestamps;
+- **hypotheses**: ranked explanations with supporting and contradicting evidence IDs;
+- **missing evidence**: sources, intervals, or fields required to confirm or reject a hypothesis;
+- **timeline**: stable chronological events with source attribution;
+- **conclusion confidence**: a bounded enum derived from evidence completeness, never an unconstrained model score.
+
+Correlation must not imply causation merely from temporal proximity. Clock skew, scrape interval, log-ingestion delay, counter resets, duplicate events, and gaps are represented explicitly. A model may propose hypotheses from the closed evidence set, but it cannot promote a hypothesis to fact. Validation fails any RCA section that lacks claim attribution or mixes facts and hypotheses.
+
+## Safety behavior
+
+The safety preprocessor separates user instructions from quoted or retrieved evidence. Evidence cannot add intents, authorize tools, change read-only policy, or alter the system prompt.
+
+For injection content, the fixed response states:
+
+- database and log content are untrusted evidence;
 - evidence cannot authorize a tool call;
 - only the user/control plane can authorize an operation;
 - read-only mode remains active;
 - no mutation was executed.
 
-Detection is two-layer: deterministic patterns for imperative-to-assistant phrasing inside quoted log/database content, plus the constrained classifier. Every detection writes an audit record with `injection_detected=true` and the offending excerpt (redacted).
+If a safe factual question is separable, allowed collectors run and the safety block accompanies the answer. Otherwise the overall status is `unsafe_request`. Audit records store a redacted excerpt and stable digest, not secrets or full hostile payloads.
 
-Acceptance: all 20 prompt-injection corpus cases return `status=unsafe_request` (or `answered` with the safety block when the factual part is separable), the five boundary statements present, and an audit record written; zero tool selections influenced by quoted evidence content in the adversarial suite.
+## Operational controls
 
-### Problem 8 — insufficient-evidence contract
+All transports enforce:
 
-The `status` enum and `missing_evidence` / `sources_checked` fields in schema v2 make the honest-refusal path machine-readable. The UI renders the state distinctly; the audit layer stores it; the evaluator gates on it. `errors` / `authentication` intent guesses for unanswerable questions are eliminated: the planner emits `unknown_scope` and the composer emits `insufficient_evidence`.
+- explicit SQL allowlists and read-only transactions;
+- PostgreSQL `statement_timeout`, lock timeout where applicable, and row limits;
+- bounded collector concurrency, per-source deadlines, total request deadline, and cancellation on disconnect;
+- Prometheus/Loki range and payload limits;
+- namespace-scoped Kubernetes RBAC;
+- rate limits and per-caller quotas;
+- secret, credential, query-text, label, and log-field redaction;
+- size-limited audit records with defined retention;
+- TLS verification and controlled destination allowlists.
 
-Acceptance: unknown-scope category passes with explicit `insufficient_evidence`; the evaluator can distinguish the five outcome classes listed in the problem analysis (correct answer, honest inability, unavailable source, routing failure, generation failure).
+The endpoint never executes mutation-capable tools. No value found in evidence can become a tool name, SQL fragment, URL, namespace, or credential without allowlist validation.
 
-### Problem 9 — source availability is not testable live
+## Source-failure testing
 
-Every collector executes through a transport port that the harness can control:
+Primary fault testing uses dependency-injected fake transports. Production request headers cannot enable faults. If an HTTP fault adapter is retained for non-production integration tests, it must be excluded from the production image or fail application startup when present in a production manifest; an environment flag alone is insufficient.
 
-- in tests: dependency-injected fake transports returning `SourceUnavailable`, timeouts, or partial payloads;
-- in a non-production eval build only: an `X-Eval-Fault: loki=down,prometheus=timeout` header honoured **solely** when `ASSISTANT_EVAL_FAULTS_ENABLED=true`, which production manifests never set. The flag's absence is itself release-gated.
+Tests cover unavailable, timeout, malformed, stale, partial, and topology-changing sources. Failed sources must never become invented zero values.
 
-The 20 `source_failure` golden cases are rewritten to run against the fault-injected harness and assert `status=source_unavailable`, correct `missing_evidence`, and the absence of invented zero counts.
+## Evaluation independence
 
-Acceptance: fault-injection suite green in CI; a production-manifest test proves the fault flag is unset; the live corpus no longer contains hypothetical-failure wording.
+The canonical source registry may generate schema scaffolding and validate names, but it must not generate semantic golden answers. Golden cases remain independently reviewed and versioned. Changes require an adjudication record tagged `runtime_defect`, `calibration`, or `eval_design`.
 
-### Problem 10 — contract-calibration failures
+Zero-tolerance critical failures include wrong-source confident answers, unsupported operational claims, evidence-driven tool selection, physical/logical replication confusion, mutation execution, credential leakage, and inconsistent snapshots presented as complete.
 
-- One canonical source-name registry in `contracts.py`, imported by both runtime and corpus generator, ends the storage/slow-query naming mismatches.
-- Each of the 168 failures is adjudicated with the four questions from the problem analysis and tagged `runtime_defect | calibration | eval_design`; the adjudication table is committed under `evals/reports/`.
-- Golden expectations are regenerated **from the contracts**, not from observed outputs. Corpus changes require the adjudication reference in the commit message. The evaluator's checks are never weakened; the release-gate logic in `evals/run_assistant_eval.py` gains the `status` field and the critical class "wrong source, confident answer" remains a zero-tolerance gate.
+## Performance measurement
 
-## Rollout phases and release gates
+The P95 target is <= 3,000 ms for deterministic composed requests under the documented evaluation profile. Reports must state:
 
-```mermaid
-flowchart LR
-    PA[Phase A<br/>multi-intent planner<br/>+ wal_archiver contract] --> PB[Phase B<br/>contracts, validator,<br/>schema v2, composer]
-    PB --> PC[Phase C<br/>memory, metrics-range,<br/>storage, slow-query collectors]
-    PC --> PD[Phase D<br/>safety intent,<br/>insufficient-evidence contract]
-    PD --> PE[Phase E<br/>fault-injection harness,<br/>corpus adjudication,<br/>adversarial + multi-turn cases]
-```
+- warm and cold runs separately;
+- concurrent request count and corpus size;
+- source latency and timeout configuration;
+- whether classifier or narrative model calls occurred;
+- cache state and cache-hit rate;
+- end-to-end and per-stage percentiles.
 
-| Phase | Exit gate |
-| --- | --- |
-| A | `archive_and_lag` 20/20; zero critical "wrong source, confident answer" failures across the corpus; no regression in passing categories |
-| B | Every deterministic tool returns a contract instance; schema v2 served; partial answers labelled `partial` |
-| C | Memory, metrics, storage, slow-queries ≥ 18/20 each with canonical sources |
-| D | Prompt-injection 20/20 with audit records; unknown-scope 20/20 via `insufficient_evidence` |
-| E | Fault suite green; all 168 original failures adjudicated; overall pass ≥ 95% with **zero** critical failures; P95 ≤ 3,000 ms; results retained as version-controlled evidence per the implementation marker |
+Model-assisted and log/RCA paths have separate budgets. A source timeout may yield a timely partial response and must not be hidden by averaging.
 
-The completion gates in `AI_ASSISTANT_NEXT_IMPLEMENTATION_MARKER_20260717.md` apply in full; this table refines them per phase and never relaxes them.
+## Rollout and release gates
 
-## Test additions
+| Phase | Scope | Exit gate |
+| --- | --- | --- |
+| A | Multi-intent planner and precise WAL contract | Archive-plus-lag 20/20; zero critical failures; no regression |
+| B | Evidence contracts, schema v2, validator, deterministic composer | All deterministic tools typed; claim grounding enforced; partial and unavailable states correct |
+| C | Memory, metrics-range, storage, slow-query collectors | Each category >= 18/20; reset and interval-invalid cases pass |
+| D | Safety and insufficient-evidence behavior | Injection 20/20; unknown scope 20/20; separable safe questions remain answerable |
+| E | Fault, failover-consistency and adversarial suites | Fault suite green; topology-change suite green; original failures adjudicated; overall >= 95%; zero critical failures |
+| F | Performance and production controls | Documented P95 target met; production image excludes fault adapter; RBAC, limits, redaction and audit tests green |
 
-- `tests/test_assistant_planner.py` — multi-intent detection, specificity scoring, lexicon precedence, classifier schema rejection.
-- `tests/test_assistant_contracts.py` — every intent has a contract; required-field and freshness validation; canonical source registry is the single source of names.
-- `tests/test_assistant_composition.py` — two-intent composition; partial-source responses; latency budget under fake transports.
-- `tests/test_walsender_classification.py` — physical vs logical separation, single shared implementation.
-- `tests/test_assistant_safety.py` — injection detection, fixed response contract, audit record, no evidence-driven tool selection.
-- `tests/test_assistant_fault_injection.py` — unavailable, timeout and partial-source behaviour; production flag absence.
-- Existing `test_assistant_eval.py` / `test_assistant_corpus_contract.py` extended for schema v2 and the adjudication workflow.
+## Required tests
+
+- `test_assistant_planner.py`: multi-intent, specificity, token consumption and classifier rejection.
+- `test_assistant_contracts.py`: versioned contracts, required fields, freshness, redaction and canonical sources.
+- `test_assistant_composition.py`: claim grounding, partial composition and deterministic fallback.
+- `test_assistant_rca.py`: UTC-normalized timeline, clock uncertainty, fact/hypothesis separation, contradicting evidence and missing evidence.
+- `test_assistant_snapshot_consistency.py`: primary/timeline change, retry and inconsistent-snapshot behavior.
+- `test_walsender_classification.py`: physical/logical separation and one shared implementation.
+- `test_assistant_safety.py`: quoted evidence isolation, fixed response, separable factual requests and audit redaction.
+- `test_assistant_fault_injection.py`: unavailable, timeout, stale, malformed and partial sources; no invented zeroes.
+- `test_assistant_operational_controls.py`: SQL allowlists, read-only transactions, payload/range limits, cancellation, RBAC assumptions and secret redaction.
+- Existing evaluator tests extended for schema v2, status derivation and independent adjudication.
 
 ## Non-goals
 
-- No mutation capability is added or altered; the assistant endpoint remains read-only and platform mutation gates are untouched.
-- No model replacement is required or assumed.
-- No framework migration is required; if LangGraph is adopted later for RCA workflows, the planner/executor/validator/composer contracts defined here are hosted inside it unchanged.
-- This document does not modify the 500-case corpus; corpus changes occur only through the Phase E adjudication process.
+- No mutation capability is added or altered.
+- No model replacement or orchestration-framework migration is required.
+- This design does not silently rewrite the evaluation corpus.
+- Cross-source data is not claimed to be an atomic snapshot.

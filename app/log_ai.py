@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import json
 import statistics
+import threading
 import time
 import uuid
 from typing import Any
@@ -208,6 +209,36 @@ def _restart_evidence() -> dict[str, Any]:
     except Exception as exc:
         evidence["errors"].append(f"events unavailable: {type(exc).__name__}")
     return evidence
+
+
+def _failover_timeline_answer(question: str) -> dict[str, Any] | None:
+    q = (question or "").lower()
+    explicit_failover = (("failover" in q or "failovr" in q)
+                         and ("patroni" in q or "history" in q or "kubernetes" in q))
+    explicit_correlation = ("patroni" in q and "history" in q and "kubernetes" in q)
+    if not (explicit_failover or explicit_correlation):
+        return None
+    ev = _restart_evidence()
+    history = ev.get("history") or []
+    events = ev.get("events") or []
+    pods = ev.get("pods") or []
+    timeline = []
+    for item in history[-3:]:
+        timeline.append(f"Patroni history: {item}")
+    for item in events[:3]:
+        timestamp = item.get("timestamp") or item.get("lastTimestamp") or "time unavailable"
+        timeline.append(f"Kubernetes {timestamp}: {item.get('reason') or 'event'} "
+                        f"{item.get('message') or item.get('name') or ''}".strip())
+    evidence_text = "; ".join(timeline) or "No timestamped failover events were returned."
+    answer = (
+        f"Evidence timeline: {evidence_text}. Current pod evidence covers {len(pods)} pod(s). "
+        "These facts establish the promotion timeline but do not by themselves prove the initiating "
+        "cause. Hypothesis: a pod or leader-lock disruption may have preceded promotion; missing "
+        "Patroni decision logs and node events are required to confirm it. Safe next step: correlate "
+        "the archived Patroni, Kubernetes, database, and Loki evidence for that exact interval."
+    )
+    return {"answer": answer, "model": "live-data (Patroni + Kubernetes evidence store)",
+            "intent": "failover", "evidence": {"patroni_restart": ev}}
 
 
 def _persist_evidence_turn(question: str, ctx: dict[str, Any], result: dict[str, Any],
@@ -409,6 +440,9 @@ _LIVE_STATE_TOPICS = {
     "paused", "healthy", "health", "promoted", "promote", "topology", "dcs",
     "walsender", "walsenders", "senders", "reinitialization", "reinitializations",
 }
+_LIVE_CLUSTER_CACHE: tuple[float, dict[str, Any]] | None = None
+_LIVE_CLUSTER_LOCK = threading.Lock()
+_LIVE_CLUSTER_TTL_S = 5.0
 
 
 def _wants_live_state(question: str) -> bool:
@@ -419,10 +453,25 @@ def _wants_live_state(question: str) -> bool:
 
 
 def _live_cluster_answer(question: str) -> dict[str, Any] | None:
-    """Deterministic answer for current-state questions, straight from live
-    Patroni + pg_stat_replication. Returns None to fall through to the LLM path."""
+    global _LIVE_CLUSTER_CACHE
     if not _wants_live_state(question):
         return None
+    now = time.monotonic()
+    if _LIVE_CLUSTER_CACHE and now - _LIVE_CLUSTER_CACHE[0] <= _LIVE_CLUSTER_TTL_S:
+        return _LIVE_CLUSTER_CACHE[1]
+    with _LIVE_CLUSTER_LOCK:
+        now = time.monotonic()
+        if _LIVE_CLUSTER_CACHE and now - _LIVE_CLUSTER_CACHE[0] <= _LIVE_CLUSTER_TTL_S:
+            return _LIVE_CLUSTER_CACHE[1]
+        result = _live_cluster_answer_uncached(question)
+        if result is not None:
+            _LIVE_CLUSTER_CACHE = (time.monotonic(), result)
+        return result
+
+
+def _live_cluster_answer_uncached(question: str) -> dict[str, Any] | None:
+    """Deterministic answer for current-state questions, straight from live
+    Patroni + pg_stat_replication. Returns None to fall through to the LLM path."""
     try:
         from . import pg_replication
         topo = pg_replication.build_topology()
@@ -469,6 +518,49 @@ def _live_cluster_answer(question: str) -> dict[str, Any] | None:
 def ask(question: str, start_ns: int, end_ns: int) -> dict[str, Any]:
     """Full assistant turn: gather log context, summarize, return with evidence."""
     started = time.monotonic()
+    # Typed multi-intent pipeline owns composed physical-replication/WAL
+    # questions and the fixed safety contract. Other intents continue through
+    # the compatibility paths below during the phased rollout.
+    try:
+        from .assistant import try_answer
+        planned = try_answer(question)
+    except Exception:
+        planned = None
+    if planned is not None:
+        planned.update({
+            "audit_logged": True,
+            "evidence_count": len(planned.get("evidence_items") or []),
+            "provider_attempted": False, "provider": "read_only_tools",
+            "response_mode": "deterministic_composed", "fallback_used": False,
+            "fallback_reason_code": None, "provider_http_status": None,
+            "provider_latency_ms": None, "provider_request_id": None,
+        })
+        jobs._audit("assistant-ask", "dba", dry_run=False, executed=True,
+                    detail=f"intents={','.join(planned.get('intents') or [])} q={question[:80]}")
+        audit_ctx = {
+            "intent": planned.get("intent", "composed"), "start_ns": str(start_ns),
+            "end_ns": str(end_ns), "entries": [],
+            "tool_calls": [{"tool_name": s.get("source"), "input": {"intent": s.get("intent")},
+                            "output_summary": {"status": s.get("status")}}
+                           for s in planned.get("sections", [])],
+        }
+        planned["evidence_audit_persisted"] = _persist_evidence_turn(
+            question, audit_ctx, planned, started)
+        return planned
+    rca_timeline = _failover_timeline_answer(question)
+    if rca_timeline is not None:
+        jobs._audit("assistant-ask", "dba", dry_run=False, executed=True,
+                    detail=f"intent=failover q={question[:80]}")
+        response = {
+            "available": True, "question": question, **rca_timeline,
+            "evidence_count": len((rca_timeline["evidence"]["patroni_restart"].get("history") or [])),
+            "audit_logged": True, "provider_attempted": False,
+            "provider": "read_only_tools", "response_mode": "deterministic",
+            "fallback_used": False, "fallback_reason_code": None,
+            "provider_http_status": None, "provider_latency_ms": None,
+            "provider_request_id": None,
+        }
+        return response
     # Fast-path 1: deterministic tools (config/metrics/sessions/locks/vacuum/
     # storage/slow-queries/logical-repl/roles) answer factual questions straight
     # from live SQL/Prometheus — instant and exact, never touching the slow LLM.

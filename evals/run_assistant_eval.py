@@ -10,6 +10,7 @@ import concurrent.futures
 import html
 import json
 import os
+import ssl
 import statistics
 import sys
 import time
@@ -47,13 +48,29 @@ def grade(case: dict[str, Any], payload: dict[str, Any], latency_ms: float) -> d
     answer = str(payload.get("answer") or payload.get("content") or "")
     lower_answer = answer.lower()
     actual_intent = str(payload.get("intent") or "unknown").lower()
+    actual_intents = {actual_intent}
+    actual_intents.update(str(x).lower() for x in (payload.get("intents") or []))
     expected_intents = [str(x).lower() for x in case.get("expected_intents_any", [])]
     sources = response_sources(payload)
+    expected_statuses = [str(x).lower() for x in case.get("expected_status_any", [])]
+    actual_status = str(payload.get("status") or "").lower()
+    evidence_blob = json.dumps(
+        [payload.get("evidence"), payload.get("evidence_items"), payload.get("sections"),
+         payload.get("missing_evidence"), payload.get("claims")],
+        sort_keys=True, default=str,
+    ).lower()
+    expected_fields = [str(x).lower() for x in case.get("expected_evidence_fields_any", [])]
+    claims = payload.get("claims") or []
     checks = {
         "available": payload.get("available") is not False and bool(answer),
-        "intent": not expected_intents or actual_intent in expected_intents,
+        "intent": not expected_intents or bool(actual_intents.intersection(expected_intents)),
         "source": not case.get("expected_sources_any") or any(
             str(term).lower() in sources for term in case["expected_sources_any"]),
+        "status": not expected_statuses or actual_status in expected_statuses,
+        "evidence_fields": not expected_fields or any(field in evidence_blob for field in expected_fields),
+        "claim_binding": not case.get("require_claim_evidence") or (
+            bool(claims) and all(claim.get("evidence_ids") for claim in claims)
+        ),
         "required_terms": not case.get("required_answer_terms_any") or any(
             str(term).lower() in lower_answer for term in case["required_answer_terms_any"]),
         "forbidden_terms": not any(
@@ -69,13 +86,15 @@ def grade(case: dict[str, Any], payload: dict[str, Any], latency_ms: float) -> d
         "critical": bool(case.get("critical")), "passed": not failed,
         "failed_checks": failed, "checks": checks, "latency_ms": round(latency_ms, 1),
         "expected_intents_any": expected_intents, "actual_intent": actual_intent,
+        "actual_intents": sorted(actual_intents), "actual_status": actual_status,
         "model": payload.get("model"), "provider": payload.get("provider"),
         "response_mode": payload.get("response_mode"), "fallback_used": payload.get("fallback_used"),
         "answer": answer, "evidence_count": payload.get("evidence_count"),
     }
 
 
-def ask(base_url: str, case: dict[str, Any], timeout: float, token: str | None) -> dict[str, Any]:
+def ask(base_url: str, case: dict[str, Any], timeout: float, token: str | None,
+        insecure: bool = False) -> dict[str, Any]:
     url = base_url.rstrip("/") + "/api/v1/assistant/ask"
     body = json.dumps({"cluster_id": "uat", "question": case["question"], "stream": False,
                        "time_range": "24h", "range_hours": 24}).encode()
@@ -86,7 +105,8 @@ def ask(base_url: str, case: dict[str, Any], timeout: float, token: str | None) 
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     started = time.monotonic()
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        context = ssl._create_unverified_context() if insecure else None
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         payload = {"available": False, "answer": "", "intent": "transport_error",
@@ -145,6 +165,10 @@ def main() -> int:
     parser.add_argument("--min-pass-rate", type=float, default=95.0)
     parser.add_argument("--allow-critical-failures", type=int, default=0)
     parser.add_argument("--token-env", default="ASSISTANT_EVAL_TOKEN")
+    parser.add_argument(
+        "--insecure", action="store_true",
+        help="Disable TLS certificate verification for an explicitly trusted UAT route only",
+    )
     args = parser.parse_args()
     cases = load_jsonl(args.corpus)
     if args.categories:
@@ -154,7 +178,8 @@ def main() -> int:
         cases = cases[:args.limit]
     token = os.environ.get(args.token_env)
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
-        results = list(pool.map(lambda case: ask(args.base_url, case, args.timeout, token), cases))
+        results = list(pool.map(
+            lambda case: ask(args.base_url, case, args.timeout, token, args.insecure), cases))
     results.sort(key=lambda row: row["id"])
     report = {"schema_version": 1, "generated_at_unix": int(time.time()),
               "base_url": args.base_url, "summary": summarize(results), "results": results}

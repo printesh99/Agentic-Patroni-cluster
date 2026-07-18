@@ -19,6 +19,8 @@ Design notes (from the 495-question eval, 2026-07-09):
 from __future__ import annotations
 
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -41,6 +43,24 @@ def _any(tk: set[str], *words: str) -> bool:
 def _phrase(q: str, *phrases: str) -> bool:
     ql = (q or "").lower()
     return any(p in ql for p in phrases)
+
+
+_COMMON_TYPOS = {
+    "shared_bufer": "shared_buffers", "sesions": "sessions", "curent": "current",
+    "blockng": "blocking", "tabels": "tables", "vacum": "vacuum",
+    "analyse": "analyze", "readness": "readiness", "scor": "score",
+    "conecton": "connection", "databse": "database", "storag": "storage",
+    "higest": "highest", "memry": "memory", "utilisation": "utilization",
+    "evidnce": "evidence",
+}
+
+
+def _normalize_common_typos(q: str) -> str:
+    normalized = q or ""
+    for wrong, right in _COMMON_TYPOS.items():
+        normalized = re.sub(rf"\b{re.escape(wrong)}\b", right, normalized,
+                            flags=re.IGNORECASE)
+    return normalized
 
 
 # RCA / "why" questions must go to the LLM — matched as whole tokens/phrases so
@@ -321,6 +341,96 @@ def cpu_capacity_tool(q: str) -> dict[str, Any] | None:
     }
 
 
+def _memory_gib(quantity: Any) -> float | None:
+    raw = str(quantity or "").strip()
+    if not raw:
+        return None
+    binary = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
+    decimal = {"K": 10**3, "M": 10**6, "G": 10**9, "T": 10**12}
+    try:
+        for suffix, factor in binary.items():
+            if raw.endswith(suffix):
+                return float(raw[:-len(suffix)]) * factor / 2**30
+        for suffix, factor in decimal.items():
+            if raw.endswith(suffix):
+                return float(raw[:-len(suffix)]) * factor / 2**30
+        return float(raw) / 2**30
+    except (TypeError, ValueError):
+        return None
+
+
+def memory_capacity_tool(q: str) -> dict[str, Any] | None:
+    tk = tokens(q)
+    if not (_any(tk, "memory", "ram") and
+            (_any(tk, "usage", "utilization", "request", "requests", "limit", "limits",
+                  "current", "configured") or _phrase(q, "memory use"))):
+        return None
+    if is_rca(q):
+        return None
+    collected_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    selector = f"postgres-operator.crunchydata.com/cluster={S.CLUSTER_NAME}"
+    try:
+        document = S.kubectl_json(["-n", S.NS, "get", "pods", "-l", selector])
+    except Exception as exc:
+        return {
+            "answer": f"Memory evidence is unavailable from Kubernetes ({type(exc).__name__}); no value is inferred.",
+            "model": "live-data (Kubernetes memory evidence unavailable)",
+            "intent": "cpu_capacity",
+            "evidence": {"collected_at_utc": collected_at, "kubernetes_available": False},
+        }
+    pods = []
+    for item in document.get("items", []):
+        container = next((c for c in ((item.get("spec") or {}).get("containers") or [])
+                          if c.get("name") == S.DB_CONTAINER), None)
+        if not container:
+            continue
+        resources = container.get("resources") or {}
+        pods.append({
+            "name": (item.get("metadata") or {}).get("name"),
+            "request_gib": _memory_gib((resources.get("requests") or {}).get("memory")),
+            "limit_gib": _memory_gib((resources.get("limits") or {}).get("memory")),
+        })
+    usage_gib = None
+    expression = (
+        'sum(container_memory_working_set_bytes{namespace="' + _promql_value(S.NS)
+        + '",pod=~"' + _promql_value(re.escape(S.CLUSTER_NAME) + ".*")
+        + '",container="' + _promql_value(S.DB_CONTAINER) + '"}) / 1073741824'
+    )
+    try:
+        usage_gib = S.prom_scalar(expression)
+    except Exception:
+        pass
+    try:
+        settings = _rows(
+            "select name, setting, coalesce(unit,'') from pg_settings "
+            "where name in ('shared_buffers','work_mem','maintenance_work_mem','effective_cache_size') "
+            "order by name")
+    except Exception:
+        settings = []
+    total_request = sum(p["request_gib"] for p in pods if p["request_gib"] is not None)
+    total_limit = sum(p["limit_gib"] for p in pods if p["limit_gib"] is not None)
+    per_pod = "; ".join(
+        f"{p['name']}: request {p['request_gib']:.1f} GiB, limit {p['limit_gib']:.1f} GiB"
+        for p in pods if p["request_gib"] is not None and p["limit_gib"] is not None)
+    setting_text = "; ".join(f"{r[0]}={r[1]}{r[2]}" for r in settings)
+    live = (f"Live memory working-set utilization: {usage_gib:.1f} GiB from Prometheus. "
+            if usage_gib is not None else
+            "Live memory utilization is unavailable from Prometheus; no usage is inferred. ")
+    return {
+        "answer": (f"Memory capacity from Kubernetes: total request {total_request:.1f} GiB, "
+                   f"total limit {total_limit:.1f} GiB. {per_pod}. {live}"
+                   f"PostgreSQL memory settings: {setting_text or 'unavailable'}. "
+                   f"Collected {collected_at}."),
+        "model": "live-data (Kubernetes + Prometheus memory)",
+        "intent": "cpu_capacity",
+        "evidence": {"kubernetes_available": True, "pods": pods,
+                     "total_request_gib": total_request, "total_limit_gib": total_limit,
+                     "prometheus_available": usage_gib is not None,
+                     "working_set_gib": usage_gib, "pg_settings": settings,
+                     "collected_at_utc": collected_at},
+    }
+
+
 # --------------------------------------------------------------------------
 # metrics_trends  →  Prometheus range for templated metrics, else live snapshot
 # --------------------------------------------------------------------------
@@ -330,7 +440,8 @@ def cpu_capacity_tool(q: str) -> dict[str, Any] | None:
 _METRIC_MAP: list[tuple[tuple[str, ...], str, str]] = [
     (("active connection", "active session"), "active_connections",
      "sql:select count(*) from pg_stat_activity where state='active'"),
-    (("connection count", "number of connection", "connections", "sessions"), "connections", "prom:connections"),
+    (("connection count", "connection trend", "number of connection", "connections", "sessions"),
+     "connections", "prom:connections"),
     (("cache hit",), "cache_hit_ratio",
      "sql:select round(100*sum(blks_hit)::numeric/nullif(sum(blks_hit)+sum(blks_read),0),2) from pg_stat_database"),
     (("transactions per second", "tps", "commits per second"), "tps", "prom:tps"),
@@ -368,7 +479,7 @@ def _range_minutes(q: str) -> int:
 
 
 def _match_metric(q: str) -> tuple[str, str] | None:
-    ql = (q or "").lower()
+    ql = (q or "").lower().replace("-", " ")
     for phrases, key, src in _METRIC_MAP:
         if any(p in ql for p in phrases):
             return key, src
@@ -383,7 +494,8 @@ def _is_metric_query(q: str) -> bool:
     if tokens(q) & _METRIC_TRIGGERS:
         return True
     return _phrase(q, "per second", "over the last", "for the last", "last 24",
-                   "last 6", "last 7", "last hour", "last week", "past 24", "past hour")
+                   "last 6", "last 7", "last hour", "last week", "past 24", "past hour",
+                   "over 24")
 
 
 # When a prom template returns no series (some exporters don't emit it), fall
@@ -433,11 +545,13 @@ def metrics_tool(q: str) -> dict[str, Any] | None:
         if not row:
             return None
         val = ", ".join(str(c) for c in row)
-        return {"answer": (f"Current {key.replace('_',' ')}: {val}. "
-                           f"(Exact live value; a full {mins//60}h time-series for this metric "
-                           f"is not templated in Prometheus yet — showing the current reading.)"),
-                "model": "live-data (SQL snapshot)", "intent": "metrics",
-                "evidence": {"metric": key, "row": row}}
+        return {"answer": (f"Prometheus returned no usable {mins//60}h series for "
+                           f"{key.replace('_',' ')}; no historical trend is inferred. "
+                           f"Current SQL snapshot: {val}."),
+                "model": "live-data (SQL snapshot; Prometheus series unavailable)",
+                "intent": "metrics",
+                "evidence": {"metric": key, "row": row, "prometheus_attempted": True,
+                             "prometheus_series_available": False}}
     return None
 
 
@@ -591,7 +705,7 @@ def slowq_tool(q: str) -> dict[str, Any] | None:
     if not rows:
         return None
     body = "; ".join(f"[{r[0]}ms total / {r[1]} calls / {r[2]}ms mean / {label} {r[3]}] {r[4]}" for r in rows)
-    return {"answer": f"Top queries by {label}: {body}.",
+    return {"answer": f"Top SQL statements (queries) by {label}: {body}.",
             "model": "live-data (pg_stat_statements)", "intent": "slow_queries",
             "evidence": {"dimension": label, "top": rows}}
 
@@ -631,7 +745,7 @@ def vacuum_tool(q: str) -> dict[str, Any] | None:
 # storage / WAL  →  sizes
 # --------------------------------------------------------------------------
 def _storage_result(answer, model, key, ev):
-    return {"answer": answer, "model": f"live-data ({model})", "intent": "storage_wal",
+    return {"answer": answer, "model": f"live-data (PostgreSQL {model})", "intent": "storage_wal",
             "evidence": {key: ev}}
 
 
@@ -651,7 +765,7 @@ def storage_tool(q: str) -> dict[str, Any] | None:
         if _phrase(q, "wal directory", "pg_wal") or ("wal" in tk and _any(tk, "directory", "files", "accumulating", "disk")):
             wal = S.sql_one("select pg_size_pretty(sum(size)), count(*) from pg_ls_waldir()")
             if wal:
-                return _storage_result(f"pg_wal directory: {wal[0]} across {wal[1]} WAL files.",
+                return _storage_result(f"pg_wal directory size: {wal[0]} across {wal[1]} WAL files.",
                                        "pg_ls_waldir", "wal", wal)
         # --- tablespaces ---
         if _any(tk, "tablespace", "tablespaces"):
@@ -948,6 +1062,9 @@ _LOG_RANGES = [("7 day", "7d", 7 * 24 * 3600), ("last week", "7d", 7 * 24 * 3600
                ("past week", "7d", 7 * 24 * 3600), ("24 hour", "24h", 24 * 3600),
                ("last day", "24h", 24 * 3600), ("6 hour", "6h", 6 * 3600),
                ("last hour", "1h", 3600), ("1 hour", "1h", 3600), ("past hour", "1h", 3600)]
+_LOG_SUMMARY_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any], int, int]] = {}
+_LOG_SUMMARY_LOCK = threading.Lock()
+_LOG_SUMMARY_TTL_S = 15.0
 
 
 def _log_range(q: str) -> tuple[str, int]:
@@ -958,6 +1075,27 @@ def _log_range(q: str) -> tuple[str, int]:
     return "24h", 24 * 3600  # "recently" / unspecified
 
 
+def _cached_log_summary(label: str, seconds: int) -> tuple[dict[str, Any], int, int]:
+    from . import loki, pg_log_analytics as LA
+    key = (label, seconds)
+    now = time.monotonic()
+    cached = _LOG_SUMMARY_CACHE.get(key)
+    if cached and now - cached[0] <= _LOG_SUMMARY_TTL_S:
+        return cached[1], cached[2], cached[3]
+    # Single-flight identical windows so concurrent assistant requests do not
+    # each launch the same expensive Loki aggregation.
+    with _LOG_SUMMARY_LOCK:
+        now = time.monotonic()
+        cached = _LOG_SUMMARY_CACHE.get(key)
+        if cached and now - cached[0] <= _LOG_SUMMARY_TTL_S:
+            return cached[1], cached[2], cached[3]
+        end = loki.now_ns()
+        start = end - seconds * 10 ** 9
+        summary = LA.summary(start, end, "5m")
+        _LOG_SUMMARY_CACHE[key] = (time.monotonic(), summary, start, end)
+        return summary, start, end
+
+
 def logs_tool(q: str) -> dict[str, Any] | None:
     tk = tokens(q)
     if _any(tk, "why", "cause"):
@@ -965,11 +1103,9 @@ def logs_tool(q: str) -> dict[str, Any] | None:
     if not ((tk & _LOGS_TOKENS) or _phrase(q, *_LOGS_PHRASES)):
         return None
     try:
-        from . import loki, pg_log_analytics as LA
-        end = loki.now_ns()
+        from . import pg_log_analytics as LA
         lab, sec = _log_range(q)
-        start = end - sec * 10 ** 9
-        summ = LA.summary(start, end, "5m")
+        summ, start, end = _cached_log_summary(lab, sec)
     except Exception:
         return None
     if not isinstance(summ, dict) or not summ.get("available"):
@@ -1102,7 +1238,7 @@ def route(question: str) -> dict[str, Any] | None:
     fast-path, then the log+LLM path). RCA/why and log questions always fall
     through. Precedence: config (named GUC) → trend-framed metrics → state tools
     → leftover metric phrases."""
-    q = question or ""
+    q = _normalize_common_typos(question or "")
     # "what is the current readiness score and why?" is a factual capacity
     # question even though it contains "why" — answer it before the RCA guard.
     if _phrase(q, "readiness score") and _phrase(q, "what is", "current", "what's", "show"):
@@ -1114,7 +1250,15 @@ def route(question: str) -> dict[str, Any] | None:
     ans = _safe(cpu_capacity_tool, q)
     if ans is not None:
         return ans
+    ans = _safe(memory_capacity_tool, q)
+    if ans is not None:
+        return ans
     tk = tokens(q)
+    if (("vacuum" in tk or "autovacuum" in tk or "analyze" in tk)
+            and ("table" in tk or "tables" in tk or "need" in tk or "dead" in tk)):
+        ans = _safe(vacuum_tool, q)
+        if ans is not None:
+            return ans
     # log questions -> deterministic Loki summary (falls through to LLM only if Loki errors)
     if (tk & _LOGS_TOKENS) or _phrase(q, *_LOGS_PHRASES):
         return _safe(logs_tool, q)
