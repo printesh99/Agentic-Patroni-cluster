@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Chart style preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="vendor/react.production.min.js"></script>
+  <script src="vendor/react-dom.production.min.js"></script>
+  <script src="vendor/echarts.min.js"></script>
+  <script src="dist/icons.js"></script>
+  <script src="dist/data.js"></script>
+  <script src="dist/components.js"></script>
+  <style>
+    body { background: var(--page-bg, #f4f6f8); padding: 28px; }
+    .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 1240px; margin: 0 auto; }
+    .demo-grid .card.wide { grid-column: 1 / -1; }
+    .demo-h { max-width: 1240px; margin: 0 auto 18px; }
+    .demo-h h1 { font-family: var(--font-sans); font-size: 20px; font-weight: 700; color: var(--fg); margin: 0; letter-spacing: -.01em; }
+    .demo-h p { color: var(--fg-dim); margin: 4px 0 0; font-size: 13px; }
+    .card .bd { padding: 14px 16px 16px; }
+  </style>
+</head>
+<body>
+  <div class="demo-h">
+    <h1>Chart styling preview</h1>
+    <p>Live render of the beautified ECharts theme (gradient area fills, soft line lift, rounded tooltips) with synthetic data.</p>
+  </div>
+  <div id="root"></div>
+  <script>
+    (function () {
+      var h = React.createElement;
+      var now = Date.now();
+      function series(seed, base, jitter, n) {
+        var nn = n || 48;
+        var r = (typeof seededRand === "function") ? seededRand(seed) : (function(){var s=seed;return function(){s=(s*9301+49297)%233280;return s/233280;};})();
+        var pts = [], v = base;
+        for (var i = 0; i < nn; i++) {
+          v = Math.max(0, v + (r() - 0.46) * jitter);
+          pts.push([now - (nn-1-i) * 1800000, +v.toFixed(1)]);
+        }
+        return pts;
+      }
+      function Card(props){ return h("div",{className:"card"+(props.wide?" wide":"")},
+        h("div",{className:"hd"}, h("h3",null,props.title)),
+        h("div",{className:"bd"}, props.children)); }
+
+      function connOption(){
+        var base = hbzEChartsBase();
+        base = hbzApplyUnit(base, "conn", "");
+        base.series = [
+          hbzAreaSeries("Active", series(7, 120, 26), 1),
+          hbzAreaSeries("Idle", series(13, 60, 18), 3)
+        ];
+        base.legend = Object.assign(base.legend, {});
+        base.series[0].markLine = { silent:true, symbol:"none",
+          lineStyle:{ color: vizVar("--viz-critical","#d83b01"), type:"dashed", width:1.5 },
+          data:[{ yAxis: 200 }], label:{ formatter:"max_connections 200", color: vizVar("--fg-dim","#6c757d"), fontSize:10, position:"insideEndTop" } };
+        return base;
+      }
+      function cpuOption(){
+        var base = hbzApplyUnit(hbzEChartsBase(), "%", "");
+        base.yAxis = Object.assign(base.yAxis, { max: 100 });
+        base.series = [ hbzAreaSeries("CPU", series(21, 42, 16), 4) ];
+        return base;
+      }
+      function tpsOption(){
+        var base = hbzApplyUnit(hbzEChartsBase(), "tps", "");
+        base.series = [
+          hbzAreaSeries("Commits", series(33, 800, 220), 2),
+          hbzAreaSeries("Rollbacks", series(41, 90, 60), 6)
+        ];
+        return base;
+      }
+      function barOption(){
+        var base = hbzEChartsBase();
+        base.xAxis = { type:"category", data:["postgres","orders","ledger","audit","sessions","analytics"],
+          axisLine:{ lineStyle:{ color: vizVar("--border","#e0e0e0") } }, axisTick:{show:false},
+          axisLabel:{ color: vizVar("--fg-dim","#6c757d"), fontSize:10 }, splitLine:{show:false} };
+        base.yAxis = { type:"value", axisLabel:{ color: vizVar("--fg-dim","#6c757d"), fontSize:10 },
+          splitLine:{ lineStyle:{ color: vizVar("--divider","#eee"), type:[3,5] } } };
+        base.tooltip = Object.assign(base.tooltip, { trigger:"item" });
+        base.grid = Object.assign(base.grid, { top: 16 });
+        var c = vizColor(1);
+        base.series = [{ type:"bar", data:[182,134,98,76,54,33], barWidth:"52%",
+          itemStyle:{ borderRadius:[6,6,0,0],
+            color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:c},{offset:1,color:vizAlpha(c,0.55)}]) },
+          emphasis:{ itemStyle:{ color: vizVar("--accent-hover","#005a9e") } } }];
+        return base;
+      }
+
+      function App(){
+        return h("div",{className:"demo-grid"},
+          h(Card,{title:"Connections (24h)",wide:true}, h(EChart,{option:connOption, height:260})),
+          h(Card,{title:"CPU utilisation"}, h(EChart,{option:cpuOption, height:220})),
+          h(Card,{title:"Transactions / sec"}, h(EChart,{option:tpsOption, height:220})),
+          h(Card,{title:"Largest databases (GiB)",wide:true}, h(EChart,{option:barOption, height:240}))
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+    })();
+  </script>
+</body>
+</html>

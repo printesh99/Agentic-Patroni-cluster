@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes drPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="dr-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">DR &amp; Cutover</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:drPulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showReadiness }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="DR Readiness" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">DR readiness</div><div class="value">96%</div><div class="sub">1 check pending</div></div>
+          <div class="kpi navy"><div class="label">RPO target</div><div class="value">5 m</div><div class="sub">actual 40 s</div></div>
+          <div class="kpi teal"><div class="label">RTO target</div><div class="value">15 m</div><div class="sub">last drill 8 m</div></div>
+          <div class="kpi orange"><div class="label">Last DR drill</div><div class="value">12 d</div><div class="sub">ago · passed</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Readiness by domain <span class="meta">weighted DR controls</span></div><div class="bd"><div id="dr-ready-radar" style="height:280px"></div></div></div>
+          <div class="card">
+            <div class="hd">Readiness checklist <span class="meta">continuous validation</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ readyRows }}" as="r" hint-placeholder-count="6">
+                <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.state }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ r.title }}</div><div class="muted txt-xs">{{ r.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">DR sites <span class="meta">standby clusters &amp; promotion readiness</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Site</th><th>Region</th><th>Role</th><th class="num">Lag</th><th class="num">Est. promote</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ siteRows }}" as="s" hint-placeholder-count="3">
+                  <tr><td class="mono txt-xs">{{ s.name }}</td><td class="txt-xs">{{ s.region }}</td><td><span class="pill {{ s.roleTone }}" style="white-space:nowrap">{{ s.role }}</span></td><td class="num mono txt-xs">{{ s.lag }}</td><td class="num mono txt-xs">{{ s.promote }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAssurance }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Recovery Assurance" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Verified restores</div><div class="value">28</div><div class="sub">last 30 d</div></div>
+          <div class="kpi navy"><div class="label">Success rate</div><div class="value">100%</div><div class="sub">auto-restore tests</div></div>
+          <div class="kpi teal"><div class="label">Avg restore time</div><div class="value">6 m</div><div class="sub">1 TiB dataset</div></div>
+          <div class="kpi orange"><div class="label">Last failure</div><div class="value">—</div><div class="sub">none in window</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Restore verification duration <span class="meta">nightly auto-restore · 14 d</span></div><div class="bd"><div id="dr-assure-dur" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Verification outcomes <span class="meta">30 d</span></div><div class="bd"><div id="dr-assure-out" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent restore verifications <span class="meta">automated pgBackRest restore + checksum</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>When</th><th>Source backup</th><th>Type</th><th class="num">Size</th><th class="num">Duration</th><th>Checksum</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ assureRows }}" as="a" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ a.when }}</td><td class="mono txt-xs">{{ a.src }}</td><td class="txt-xs">{{ a.type }}</td><td class="num mono txt-xs">{{ a.size }}</td><td class="num mono txt-xs">{{ a.dur }}</td><td><span class="pill {{ a.ckTone }}" style="white-space:nowrap">{{ a.checksum }}</span></td><td><span class="pill {{ a.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPitr }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Restore Window (PITR)" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">PITR window</div><div class="value">7 d</div><div class="sub">continuous WAL</div></div>
+          <div class="kpi green"><div class="label">Earliest recovery</div><div class="value">Jul 16</div><div class="sub">02:00 UTC</div></div>
+          <div class="kpi teal"><div class="label">Latest recovery</div><div class="value">now</div><div class="sub">WAL streaming</div></div>
+          <div class="kpi orange"><div class="label">Recovery granularity</div><div class="value">~1 s</div><div class="sub">named + LSN</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>Source cluster</label><select><option>prod-pgcluster-uae</option><option>dr-pgcluster-uae</option></select></div>
+            <div class="field" style="margin:0;min-width:170px"><label>Recovery target</label><select><option>Point in time</option><option>Named restore point</option><option>LSN</option><option>Transaction ID</option></select></div>
+            <div class="field" style="margin:0;min-width:190px"><label>Target time (UTC)</label><input value="2026-07-21 14:32:00"></div>
+            <button class="btn sm" disabled="disabled">Preview restore</button>
+            <button class="btn sm primary" disabled="disabled">Restore to new cluster (SHADOW)</button>
+          </div>
+        </div>
+        <div class="card"><div class="hd">Recoverable timeline <span class="meta">WAL coverage &amp; base backups · 7 d window</span></div><div class="bd"><div id="dr-pitr-timeline" style="height:230px"></div></div></div>
+        <div class="card">
+          <div class="hd">Named restore points <span class="meta">pg_create_restore_point + pre-change markers</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Name</th><th>Created</th><th class="num">LSN</th><th>Source</th><th>Type</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ rpRows }}" as="r" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ r.name }}</td><td class="mono txt-xs">{{ r.created }}</td><td class="num mono txt-xs">{{ r.lsn }}</td><td class="txt-xs">{{ r.source }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap">{{ r.type }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSnapshots }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Snapshots and Clone/Fork" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Snapshots</div><div class="value">42</div><div class="sub">prod + DR</div></div>
+          <div class="kpi teal"><div class="label">Active clones/forks</div><div class="value">3</div><div class="sub">orders · CI · analyst</div></div>
+          <div class="kpi green"><div class="label">Fastest fork</div><div class="value">38 s</div><div class="sub">CoW clone</div></div>
+          <div class="kpi orange"><div class="label">Clone storage</div><div class="value">840 GiB</div><div class="sub">delta only</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>From snapshot</label><select><option>prod-pgcluster-uae · Jul 21 02:00</option><option>prod-pgcluster-uae · Jul 20 02:00</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Mode</label><select><option>Clone (copy-on-write)</option><option>Fork (independent)</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Mask PII</label><select><option>Yes (anonymize)</option><option>No</option></select></div>
+            <button class="btn sm primary" disabled="disabled">Create fork (SHADOW)</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Recent snapshots <span class="meta">storage-class + pgBackRest</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Snapshot</th><th>Cluster</th><th>Taken</th><th class="num">Size</th><th>Type</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ snapRows }}" as="s" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ s.name }}</td><td class="mono txt-xs">{{ s.cluster }}</td><td class="mono txt-xs">{{ s.taken }}</td><td class="num mono txt-xs">{{ s.size }}</td><td class="txt-xs">{{ s.type }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Active clones &amp; forks <span class="meta">ephemeral environments</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Name</th><th>Source</th><th>Mode</th><th>Owner</th><th class="num">TTL</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ cloneRows }}" as="c" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ c.name }}</td><td class="mono txt-xs">{{ c.src }}</td><td><span class="pill {{ c.modeTone }}" style="white-space:nowrap">{{ c.mode }}</span></td><td class="txt-xs">{{ c.owner }}</td><td class="num mono txt-xs">{{ c.ttl }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSla }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="SLA / RTO / RPO" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Availability (30d)</div><div class="value">99.98%</div><div class="sub">SLA 99.95%</div></div>
+          <div class="kpi navy"><div class="label">RPO actual</div><div class="value">40 s</div><div class="sub">target 5 m</div></div>
+          <div class="kpi teal"><div class="label">RTO (last drill)</div><div class="value">8 m</div><div class="sub">target 15 m</div></div>
+          <div class="kpi orange"><div class="label">Error budget</div><div class="value">62%</div><div class="sub">remaining · month</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">RPO vs target <span class="meta">measured lag → recovery point · 24h</span></div><div class="bd"><div id="dr-sla-rpo" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Availability &amp; error budget <span class="meta">30 d rolling</span></div><div class="bd"><div id="dr-sla-avail" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">SLA objectives by tier <span class="meta">per-cluster commitments</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>Tier</th><th class="num">Availability SLA</th><th class="num">RPO</th><th class="num">RTO</th><th class="num">30d actual</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ slaRows }}" as="s" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ s.cluster }}</td><td class="txt-xs">{{ s.tier }}</td><td class="num mono txt-xs">{{ s.avail }}</td><td class="num mono txt-xs">{{ s.rpo }}</td><td class="num mono txt-xs">{{ s.rto }}</td><td class="num mono txt-xs"><strong>{{ s.actual }}</strong></td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCutover }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cutover and Switchover" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:180px"><label>Cutover type</label><select><option>Planned DR failover (drill)</option><option>Regional evacuation</option><option>Return to primary (failback)</option></select></div>
+            <div class="field" style="margin:0;min-width:160px"><label>Target site</label><select><option>dr-pgcluster-uae (UAE North)</option></select></div>
+            <button class="btn sm" disabled="disabled">Dry-run runbook</button>
+            <button class="btn sm primary" disabled="disabled">Initiate cutover (SHADOW)</button>
+            <div style="flex:1"></div>
+            <span class="pill warn"><span class="dot"></span>guarded · dual DBA approval</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Runbook steps</div><div class="value">9</div><div class="sub">6 automated</div></div>
+          <div class="kpi green"><div class="label">Preflight</div><div class="value">passed</div><div class="sub">DR lag 620 ms</div></div>
+          <div class="kpi teal"><div class="label">Est. total</div><div class="value">~8 m</div><div class="sub">to full service</div></div>
+          <div class="kpi orange"><div class="label">Last drill</div><div class="value">12 d</div><div class="sub">RTO 8 m · passed</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Cutover runbook <span class="meta">planned DR failover to dr-pgcluster-uae</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ cutoverRows }}" as="c" hint-placeholder-count="6">
+              <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ c.tone }}" style="white-space:nowrap;min-width:44px;justify-content:center">{{ c.step }}</span>
+                <span class="pill {{ c.modeTone }}" style="white-space:nowrap">{{ c.mode }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ c.title }}</div><div class="muted txt-xs">{{ c.sub }}</div></div>
+                <div class="mono txt-xs muted" style="white-space:nowrap">{{ c.eta }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live pgBackRest, WAL archive, PITR, snapshot/clone and /api/v1/dr runbook payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: &quot;100%&quot;, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { tab: "readiness", group: "dr", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "dr") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      readiness: ["DR Readiness", "Continuous DR posture, RPO/RTO status and standby-site promotion readiness"],
+      assurance: ["Recovery Assurance", "Automated nightly restore verification with checksum reconciliation"],
+      pitr: ["Restore Window (PITR)", "Continuous WAL coverage, named restore points and point-in-time recovery"],
+      snapshots: ["Snapshots & Clone/Fork", "Snapshot inventory and copy-on-write clone / independent fork provisioning"],
+      sla: ["SLA / RTO / RPO", "Availability commitments, error budget and measured recovery objectives"],
+      cutover: ["Cutover & Switchover", "Guarded DR failover / failback runbook with preflight and dual approval"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "dr" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showReadiness: tab === "readiness", showAssurance: tab === "assurance", showPitr: tab === "pitr",
+      showSnapshots: tab === "snapshots", showSla: tab === "sla", showCutover: tab === "cutover",
+      readyRows: [
+        { state: "ok", tone: "ok", title: "Standby lag within RPO", sub: "dr-pgcluster-uae 620 ms · target 5 m" },
+        { state: "ok", tone: "ok", title: "WAL archive healthy", sub: "continuous · last segment 40 s ago" },
+        { state: "ok", tone: "ok", title: "DR site capacity reserved", sub: "dr-pgcluster-uae sized to take full prod load" },
+        { state: "ok", tone: "ok", title: "Runbook validated", sub: "last drill 12 d ago · RTO 8 m" },
+        { state: "ok", tone: "ok", title: "DNS / connection failover ready", sub: "PgBouncer + external DNS TTL 30 s" },
+        { state: "warn", tone: "warn", title: "DR cluster gated (RBAC / NetworkPolicy)", sub: "dr-pgcluster-uae defined in registry but disabled — verify reachability before enabling" }
+      ],
+      siteRows: [
+        { name: "dr-pgcluster-uae", region: "me-central (UAE North)", role: "warm standby (gated)", roleTone: "info", lag: "620 ms", promote: "~11 s", tone: "info", status: "defined · disabled" },
+        { name: "backup-cold-uae", region: "me-central (UAE Central)", role: "cold (restore)", roleTone: "muted", lag: "—", promote: "~6 m", tone: "muted", status: "cold" }
+      ],
+      assureRows: [
+        { when: "Jul 22 03:00", src: "prod-pgcluster-uae full-2201", type: "full", size: "2.4 TiB", dur: "6 m 12 s", checksum: "match", ckTone: "ok", tone: "ok", status: "verified" },
+        { when: "Jul 21 03:00", src: "prod-pgcluster-uae full-2188", type: "full", size: "2.4 TiB", dur: "6 m 04 s", checksum: "match", ckTone: "ok", tone: "ok", status: "verified" },
+        { when: "Jul 20 03:00", src: "prod-pgcluster-uae diff-2181", type: "diff", size: "180 GiB", dur: "1 m 12 s", checksum: "match", ckTone: "ok", tone: "ok", status: "verified" },
+        { when: "Jul 19 03:00", src: "prod-pgcluster-uae full-2174", type: "full", size: "2.3 TiB", dur: "5 m 58 s", checksum: "match", ckTone: "ok", tone: "ok", status: "verified" },
+        { when: "Jul 18 03:00", src: "dr-pgcluster-uae full-2160", type: "full", size: "2.3 TiB", dur: "6 m 02 s", checksum: "match", ckTone: "ok", tone: "ok", status: "verified" }
+      ],
+      rpRows: [
+        { name: "pre_migration_orders_16", created: "Jul 21 14:30", lsn: "3/49F0A210", source: "Migration Wizard", type: "auto", tone: "info" },
+        { name: "before_bulk_purge", created: "Jul 20 22:10", lsn: "3/48C1B880", source: "SQL Workbench", type: "manual", tone: "muted" },
+        { name: "pre_16.4_upgrade", created: "May 30 01:18", lsn: "3/2A10FF40", source: "Lifecycle Upgrade", type: "auto", tone: "info" },
+        { name: "nightly_marker", created: "Jul 22 02:00", lsn: "3/4A1E0090", source: "scheduler", type: "auto", tone: "info" }
+      ],
+      snapRows: [
+        { name: "snap-2201", cluster: "prod-pgcluster-uae", taken: "Jul 22 02:00", size: "2.4 TiB", type: "storage CoW", tone: "ok", status: "ready" },
+        { name: "snap-2188", cluster: "prod-pgcluster-uae", taken: "Jul 21 02:00", size: "2.4 TiB", type: "storage CoW", tone: "ok", status: "ready" },
+        { name: "snap-dr-118", cluster: "dr-pgcluster-uae", taken: "Jul 22 02:00", size: "2.3 TiB", type: "storage CoW", tone: "ok", status: "ready" },
+        { name: "snap-2170", cluster: "prod-pgcluster-uae", taken: "Jul 15 02:00", size: "2.3 TiB", type: "storage CoW", tone: "muted", status: "aging out" }
+      ],
+      cloneRows: [
+        { name: "orders-refresh", src: "snap-2201", mode: "clone", modeTone: "info", owner: "Platform", ttl: "5 d", tone: "ok", status: "active" },
+        { name: "ci-ephemeral-4821", src: "snap-2188", mode: "fork", modeTone: "ok", owner: "CI pipeline", ttl: "4 h", tone: "ok", status: "active" },
+        { name: "analyst-sandbox", src: "snap-2188", mode: "clone (masked)", modeTone: "warn", owner: "Analytics", ttl: "2 d", tone: "ok", status: "active" }
+      ],
+      slaRows: [
+        { cluster: "prod-pgcluster-uae", tier: "Tier 0 (critical)", avail: "99.95%", rpo: "5 m", rto: "15 m", actual: "99.98%", tone: "ok", status: "met" },
+        { cluster: "dr-pgcluster-uae", tier: "Tier 0 (standby)", avail: "n/a", rpo: "5 m", rto: "15 m", actual: "gated", tone: "info", status: "standby" }
+      ],
+      cutoverRows: [
+        { step: "1", mode: "auto", modeTone: "ok", title: "Freeze writes on primary", sub: "PgBouncer pause · drain in-flight", eta: "10 s" },
+        { step: "2", mode: "auto", modeTone: "ok", title: "Confirm DR caught up", sub: "wait until replay LSN ≥ frozen LSN", eta: "5 s" },
+        { step: "3", mode: "auto", modeTone: "ok", title: "Promote dr-pgcluster-uae to primary", sub: "Patroni failover · new timeline", eta: "11 s" },
+        { step: "4", mode: "auto", modeTone: "ok", title: "Repoint connection routing", sub: "external DNS + PgBouncer to DR site", eta: "30 s" },
+        { step: "5", mode: "manual", modeTone: "warn", title: "Validate application health", sub: "smoke tests · error rate baseline", eta: "3 m" },
+        { step: "6", mode: "manual", modeTone: "warn", title: "Reconfigure old primary as standby", sub: "reinit from new primary · failback prep", eta: "on recovery" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { readiness: 1, assurance: 1, pitr: 1, snapshots: 1, sla: 1, cutover: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 20, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  days(n) {
+    var out = [], m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * 864e5); out.push(m[d.getMonth()] + " " + d.getDate()); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { readiness: "dr-ready-radar", assurance: "dr-assure-dur", pitr: "dr-pitr-timeline", snapshots: null, sla: "dr-sla-rpo", cutover: null }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "readiness") {
+      this.mk("dr-ready-radar", Object.assign(this.base(), {
+        tooltip: { trigger: "item" },
+        radar: { indicator: [
+            { name: "Replication", max: 100 }, { name: "Backups", max: 100 }, { name: "Capacity", max: 100 },
+            { name: "Runbook", max: 100 }, { name: "Networking", max: 100 }, { name: "Drills", max: 100 }
+          ], radius: "62%", splitLine: { lineStyle: { color: "#eef0f5" } }, splitArea: { areaStyle: { color: ["#fbfbfe", "#f4f4fb"] } }, axisName: { fontSize: 10, color: "#5b6b7b" } },
+        series: [{ type: "radar", data: [
+            { value: [92, 100, 98, 96, 94, 90], name: "current", areaStyle: { color: "rgba(16,124,16,0.15)" }, lineStyle: { color: "#107c10", width: 2 }, itemStyle: { color: "#107c10" } },
+            { value: [98, 100, 100, 100, 98, 98], name: "target", lineStyle: { color: "#17a2b8", width: 1.5, type: "dashed" }, itemStyle: { color: "#17a2b8" }, symbol: "none" }
+          ] }],
+        legend: { bottom: 0, icon: "circle", itemWidth: 8, data: ["current", "target"] }
+      }));
+    } else if (tab === "assurance") {
+      var d = this.days(14);
+      this.mk("dr-assure-dur", Object.assign(this.base(), {
+        xAxis: { type: "category", data: d, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 2 } },
+        yAxis: { type: "value", name: "min", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "restore time", type: "line", smooth: true, showSymbol: false, data: d.map(function () { return +(5.6 + Math.random() * 1.1).toFixed(1); }), lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" },
+          markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "RTO 15 m", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 15 }] } }]
+      }));
+      this.donut("dr-assure-out", [
+        { name: "Verified", value: 28, itemStyle: { color: "#107c10" } },
+        { name: "Warnings", value: 1, itemStyle: { color: "#f59e0b" } },
+        { name: "Failed", value: 0, itemStyle: { color: "#dc3545" } }
+      ], "100%", "success");
+    } else if (tab === "pitr") {
+      var d = this.days(7);
+      this.mk("dr-pitr-timeline", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 52, right: 20, top: 30, bottom: 26 },
+        xAxis: { type: "category", data: d, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", max: 1, show: false },
+        series: [
+          { name: "WAL coverage", type: "bar", data: d.map(function () { return 1; }), barWidth: "96%", itemStyle: { color: "rgba(124,58,237,0.18)" }, silent: true },
+          { name: "base backup", type: "scatter", data: d.map(function (_, i) { return [i, 0.5]; }), symbolSize: 12, itemStyle: { color: "#107c10" } }
+        ]
+      }));
+    } else if (tab === "sla") {
+      var t = this.times(24, 60);
+      this.mk("dr-sla-rpo", Object.assign(this.base(), {
+        xAxis: { type: "category", data: t, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", name: "s", max: 300, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "RPO (recovery point)", type: "line", smooth: true, showSymbol: false, data: t.map(function () { return Math.round(30 + Math.random() * 25); }), lineStyle: { width: 2.5, color: "#107c10" }, itemStyle: { color: "#107c10" }, areaStyle: { opacity: 0.1, color: "#107c10" },
+          markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "RPO target 5 m", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 300 }] } }]
+      }));
+      var d30 = this.days(30);
+      this.mk("dr-sla-avail", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: d30, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 6 } },
+        yAxis: { type: "value", name: "%", min: 60, max: 100, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "error budget remaining", type: "line", smooth: true, showSymbol: false, data: d30.map(function (_, i) { return Math.round(98 - i * 1.2 + Math.random() * 2); }), lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" } }]
+      }));
+    }
+  }
+}
+</script>
+</body>
+</html>

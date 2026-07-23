@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes amPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="am-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">App Monitoring</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:amPulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet. Ask me to design it next.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEstate }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Estate Overview" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:140px"><label>Region</label><select><option>All regions</option><option>uae</option><option>dr</option></select></div>
+            <div class="field" style="margin:0;min-width:160px"><label>Domain</label><select><option>All domains</option><option>TPS</option><option>TPS WAREHOUSE</option><option>SERVICE</option><option>COMMON</option></select></div>
+            <div class="field" style="margin:0;min-width:180px"><label>Database</label><select><option>All databases</option><option>ae_tps_uat</option><option>ae_tps_whs_uat</option><option>ae_service_uat</option><option>ae_gateway_uat</option><option>ae_common_uat</option></select></div>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>Prometheus · pginspector exporter</span>
+            <a class="btn sm" href="#" title="uat-app-monitoring · Grafana">Full dashboard in Grafana</a>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Total sessions</div><div class="value">246</div><div class="sub">pg_stat_activity</div></div>
+          <div class="kpi green"><div class="label">Active</div><div class="value">38</div><div class="sub">state = active</div></div>
+          <div class="kpi navy"><div class="label">Idle</div><div class="value">176</div><div class="sub">state = idle</div></div>
+          <div class="kpi orange"><div class="label">Idle in Tx</div><div class="value">24</div><div class="sub">idle in transaction</div></div>
+          <div class="kpi red"><div class="label">Lock waits</div><div class="value">8</div><div class="sub">wait_event_type = Lock</div></div>
+          <div class="kpi teal"><div class="label">DB coverage</div><div class="value">14</div><div class="sub">inventoried databases</div></div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Session state</div><div class="bd"><div id="am-state" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Sessions by region</div><div class="bd"><div id="am-region" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Sessions by domain</div><div class="bd"><div id="am-domain" style="height:240px"></div></div></div>
+        </div>
+        <div class="card"><div class="hd">Session trend <span class="meta">24h</span></div><div class="bd"><div id="am-trend" style="height:170px"></div></div></div>
+        <div class="card">
+          <div class="hd">Top sessions by application &amp; wait <span class="meta">{{ topCount }} groups</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Database</th><th>Application</th><th>State</th><th>Wait type</th><th>Wait event</th><th class="num">Sessions</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ topSessRows }}" as="t" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ t.db }}</td><td class="txt-xs">{{ t.app }}</td><td><span class="pill {{ t.tone }}" style="white-space:nowrap">{{ t.state }}</span></td><td class="txt-xs">{{ t.wt }}</td><td class="txt-xs muted">{{ t.we }}</td><td class="num mono txt-xs">{{ t.n }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDomain }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Domain Detail" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <sc-for list="{{ domTabs }}" as="dt" hint-placeholder-count="2">
+                <button class="btn sm {{ dt.cls }}" onClick="{{ dt.onClick }}" title="{{ dt.sub }}">{{ dt.label }}</button>
+              </sc-for>
+            </div>
+            <div class="field" style="margin:0;min-width:170px"><label>Database</label><select><option>All in domain</option><option>ae_tps_uat</option><option>ae_tps_whs_uat</option><option>ae_service_uat</option><option>ae_gateway_uat</option><option>ae_common_uat</option></select></div>
+            <sc-if value="{{ showChips }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span class="txt-xs muted" style="text-transform:uppercase;font-weight:700">Schema</span>
+                <sc-for list="{{ chips }}" as="ch" hint-placeholder-count="6">
+                  <button class="btn sm {{ ch.cls }}" onClick="{{ ch.onClick }}">{{ ch.label }}</button>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="flex:1"></div>
+            <a class="btn sm" href="#" title="uat-app-monitoring · Grafana">Full dashboard in Grafana</a>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Tables tracked</div><div class="value">{{ domKTables }}</div><div class="sub">pginspector</div></div>
+          <div class="kpi navy"><div class="label">Live sessions</div><div class="value">{{ domKSess }}</div><div class="sub">in-scope pg_stat_activity</div></div>
+          <div class="kpi teal"><div class="label">Rows inserted</div><div class="value">{{ domKIns }}</div><div class="sub">over 24h</div></div>
+          <div class="kpi {{ domKDeadCls }}"><div class="label">Max dead-tuple %</div><div class="value">{{ domKDead }}</div><div class="sub">worst table</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Top tables by size</div><div class="bd"><div id="am-size" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Top tables by row estimate</div><div class="bd"><div id="am-rows" style="height:240px"></div></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Dead-tuple % (vacuum candidates) <span class="meta">{{ deadCount }} tables</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Relation</th><th>Database</th><th class="num">Dead %</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ deadRows }}" as="d" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ d.rel }}</td><td class="txt-xs muted">{{ d.db }}</td><td class="num"><span class="pill {{ d.tone }}" style="white-space:nowrap">{{ d.pct }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">DML / ETL churn <span class="meta">rows inserted · 24h</span></div><div class="bd"><div id="am-churn" style="height:240px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Sessions &amp; waits <span class="meta">{{ domSessCount }} groups</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Database</th><th>Application</th><th>State</th><th>Wait type</th><th>Wait event</th><th class="num">Sessions</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ domSessRows }}" as="s" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ s.db }}</td><td class="txt-xs">{{ s.app }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap">{{ s.state }}</span></td><td class="txt-xs">{{ s.wt }}</td><td class="txt-xs muted">{{ s.we }}</td><td class="num mono txt-xs">{{ s.n }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showRepl }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Replication and DBA Evidence" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Subscriptions</div><div class="value">3</div><div class="sub">2 enabled</div></div>
+          <div class="kpi navy"><div class="label">Replication slots</div><div class="value">4</div><div class="sub">logical/physical</div></div>
+          <div class="kpi red"><div class="label">Retained WAL</div><div class="value">8.1 GiB</div><div class="sub">across all slots</div></div>
+          <div class="kpi teal"><div class="label">Logical workers</div><div class="value">5</div><div class="sub">walsender / apply</div></div>
+          <div class="kpi green"><div class="label">Locks held</div><div class="value">214</div><div class="sub">pg_locks_count</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Logical replication subscriptions <span class="meta">3</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Database</th><th>Subscription</th><th>Publications</th><th>State</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ subRows }}" as="sb" hint-placeholder-count="3">
+                  <tr><td class="mono txt-xs">{{ sb.db }}</td><td class="txt-xs">{{ sb.sub }}</td><td class="txt-xs muted">{{ sb.pubs }}</td><td><span class="pill {{ sb.tone }}" style="white-space:nowrap">{{ sb.state }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Replication slots — retained WAL</div><div class="bd"><div id="am-slots" style="height:230px"></div></div></div>
+          <div class="card">
+            <div class="hd">Logical worker sessions <span class="meta">3 groups</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Database</th><th>Backend type</th><th>Application</th><th class="num">Sessions</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ workerRows }}" as="w" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ w.db }}</td><td class="txt-xs">{{ w.backend }}</td><td class="txt-xs muted">{{ w.app }}</td><td class="num mono txt-xs">{{ w.n }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="txt-xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">DBA Evidence</div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Tables modified since last analyze <span class="meta">analyze backlog</span></div><div class="bd"><div id="am-mod" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">High sequential-scan tables</div><div class="bd"><div id="am-seq" style="height:230px"></div></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Largest indexes <span class="meta">5</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Index</th><th>Table</th><th>Database</th><th class="num">Size</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ idxRows }}" as="x" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ x.idx }}</td><td class="txt-xs">{{ x.tbl }}</td><td class="txt-xs muted">{{ x.db }}</td><td class="num mono txt-xs">{{ x.size }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Lock counts by mode</div><div class="bd"><div id="am-lockmodes" style="height:230px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showBusiness }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Banking Business Dashboard" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card" style="border-left:3px solid #b8893c">
+          <div class="bd txt-xs muted" style="padding:10px 16px">Read access uses the application role. If panels show "permission denied", grant the read-only role <strong>USAGE + SELECT</strong> on the banking schemas (see deploy notes).</div>
+        </div>
+        <div class="txt-xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Business Volumes</div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="card"><div class="hd">Customers <span class="meta">common</span></div><div class="bd"><div style="font-size:26px;font-weight:700;font-family:'Times New Roman',Times,serif;color:#212529">1,284,902</div><div class="muted txt-xs">registered · all channels</div></div></div>
+          <div class="card"><div class="hd">Accounts <span class="meta">common</span></div><div class="bd"><div style="font-size:26px;font-weight:700;font-family:'Times New Roman',Times,serif;color:#212529">2,411,306</div><div class="muted txt-xs">active CASA + deposits</div></div></div>
+          <div class="card"><div class="hd">Posting Events <span class="meta">tps</span></div><div class="bd"><div style="font-size:26px;font-weight:700;font-family:'Times New Roman',Times,serif;color:#212529">18,442,180</div><div class="muted txt-xs">over 24h</div></div></div>
+          <div class="card"><div class="hd">Transaction Value <span class="meta">tps</span></div><div class="bd"><div style="font-size:26px;font-weight:700;font-family:'Times New Roman',Times,serif;color:#212529">4,218,440,912</div><div class="muted txt-xs">AED · over 24h</div></div></div>
+        </div>
+        <div class="txt-xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Channel Mix</div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Channels <span class="meta">common</span></div><div class="bd"><div id="am-channels" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Transaction Mix <span class="meta">tps</span></div><div class="bd"><div id="am-txnmix" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Event Trend <span class="meta">tps · 24h</span></div><div class="bd"><div id="am-eventtrend" style="height:240px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showMgmt }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Management Scorecard" style="display:flex;flex-direction:column;gap:12px">
+        <div class="txt-xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Executive Health</div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Live Sessions by State</div><div class="bd"><div id="am-mgmt-sessions" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Database Footprint</div><div class="bd"><div id="am-mgmt-size" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Operational Risk Signals</div><div class="bd"><div id="am-mgmt-risk" style="height:230px"></div></div></div>
+        </div>
+        <div class="txt-xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Adoption and Operations</div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Channel Adoption <span class="meta">common</span></div><div class="bd"><div id="am-mgmt-adoption" style="height:240px"></div></div></div>
+          <div class="card">
+            <div class="hd">Highest Table Churn <span class="meta">rows · 24h</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Relation</th><th>Database</th><th class="num">Rows</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ churnRows }}" as="cr" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ cr.rel }}</td><td class="txt-xs muted">{{ cr.db }}</td><td class="num mono txt-xs">{{ cr.n }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Lock Modes</div><div class="bd"><div id="am-mgmt-locks" style="height:240px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /api/v1 appmon + bizmon payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "estate", group: "appmon", ph: null, tick: 0, domain: "tps", schema: "" };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  domTabsFor(tab) {
+    return {
+      tps: [{ slug: "tps", label: "TPS Posting", sub: "category = TPS" }, { slug: "tps_warehouse", label: "TPS Warehouse", sub: "category = TPS_WAREHOUSE" }],
+      service: [{ slug: "service", label: "Service (CRM/Jobs/Kafka)", sub: "category = SERVICE" }, { slug: "api_gateway", label: "API Gateway", sub: "schema = api_gateway" }],
+      apps: [{ slug: "charge", label: "Charge", sub: "schema = charge" }, { slug: "locker", label: "Locker", sub: "schema = locker" }, { slug: "mobile", label: "Mobile", sub: "schema = mobile" }, { slug: "document", label: "Document", sub: "schema = document" }]
+    }[tab] || [];
+  }
+  domData() {
+    return {
+      tps: { k: ["42", "38", "18.4 M", "24.6%", "red"],
+        size: [["tps.posting_events", 96], ["tps.posting_journal", 64], ["tps.txn_batch", 22], ["tps.gl_entries", 18], ["tps.posting_audit", 9]],
+        rows: [["tps.posting_events", 412], ["tps.posting_journal", 188], ["tps.gl_entries", 96], ["tps.txn_batch", 41], ["tps.posting_audit", 12]],
+        dead: [["tps.posting_events", "ae_tps_uat", 24.6], ["tps.txn_batch", "ae_tps_uat", 12.1], ["tps.posting_audit", "ae_tps_uat", 4.2]],
+        churn: [["tps.posting_events", 14.2], ["tps.posting_journal", 3.9], ["tps.txn_batch", 0.31]],
+        sess: [["ae_tps_uat", "tps-posting-svc", "active", "CPU", "—", 14], ["ae_tps_uat", "tps-posting-svc", "idle", "Client", "ClientRead", 12], ["ae_tps_uat", "tps-batch", "idle in transaction", "Lock", "transactionid", 4], ["ae_tps_uat", "etl-loader", "active", "IO", "DataFileExtend", 8]] },
+      tps_warehouse: { k: ["18", "9", "42.1 M", "6.2%", "orange"],
+        size: [["whs.posting_history", 812], ["whs.txn_archive", 344], ["whs.gl_history", 120], ["whs.reconciliation", 34]],
+        rows: [["whs.posting_history", 2140], ["whs.txn_archive", 960], ["whs.gl_history", 410], ["whs.reconciliation", 88]],
+        dead: [["whs.reconciliation", "ae_tps_whs_uat", 6.2], ["whs.posting_history", "ae_tps_whs_uat", 1.1]],
+        churn: [["whs.posting_history", 38.4], ["whs.txn_archive", 3.4], ["whs.reconciliation", 0.28]],
+        sess: [["ae_tps_whs_uat", "etl-loader", "active", "IO", "DataFileExtend", 5], ["ae_tps_whs_uat", "reporting", "idle", "Client", "ClientRead", 4]] },
+      service: { k: ["57", "22", "3.8 M", "11.4%", "orange"],
+        size: [["crm_slim.cases", 41], ["kafka_recovery.events", 28], ["chatbot.conversations", 14], ["profile_management.profiles", 9], ["banking_admin.audit", 6]],
+        rows: [["kafka_recovery.events", 122], ["crm_slim.cases", 64], ["chatbot.conversations", 48], ["profile_management.profiles", 21], ["banking_admin.audit", 8]],
+        dead: [["kafka_recovery.events", "ae_service_uat", 11.4], ["crm_slim.cases", "ae_service_uat", 7.2], ["chatbot.conversations", "ae_service_uat", 2.8]],
+        churn: [["kafka_recovery.events", 2.6], ["crm_slim.cases", 0.84], ["chatbot.conversations", 0.36]],
+        sess: [["ae_service_uat", "crm-svc", "active", "CPU", "—", 6], ["ae_service_uat", "kafka-recovery", "active", "IO", "DataFileRead", 5], ["ae_service_uat", "chatbot", "idle", "Client", "ClientRead", 9], ["ae_service_uat", "jobs-runner", "idle in transaction", "Lock", "relation", 2]] },
+      api_gateway: { k: ["12", "14", "9.6 M", "4.8%", "orange"],
+        size: [["api_gateway.request_log", 74], ["api_gateway.api_tokens", 3], ["api_gateway.rate_limits", 1]],
+        rows: [["api_gateway.request_log", 388], ["api_gateway.api_tokens", 2], ["api_gateway.rate_limits", 1]],
+        dead: [["api_gateway.request_log", "ae_gateway_uat", 4.8], ["api_gateway.rate_limits", "ae_gateway_uat", 1.9]],
+        churn: [["api_gateway.request_log", 9.6], ["api_gateway.rate_limits", 0.05]],
+        sess: [["ae_gateway_uat", "api-gateway", "active", "CPU", "—", 8], ["ae_gateway_uat", "api-gateway", "idle", "Client", "ClientRead", 6]] },
+      charge: { k: ["21", "11", "2.2 M", "9.1%", "orange"],
+        size: [["charge.transactions", 52], ["charge.fee_schedule", 4], ["charge.disputes", 2]],
+        rows: [["charge.transactions", 210], ["charge.disputes", 3], ["charge.fee_schedule", 1]],
+        dead: [["charge.transactions", "ae_common_uat", 9.1], ["charge.disputes", "ae_common_uat", 3.4]],
+        churn: [["charge.transactions", 2.2], ["charge.disputes", 0.01]],
+        sess: [["ae_common_uat", "charge-api", "active", "IO", "DataFileRead", 7], ["ae_common_uat", "charge-api", "idle", "Client", "ClientRead", 4]] },
+      locker: { k: ["9", "4", "84 K", "2.4%", "orange"],
+        size: [["locker.visits", 6], ["locker.boxes", 1], ["locker.contracts", 1]],
+        rows: [["locker.visits", 12], ["locker.contracts", 1], ["locker.boxes", 1]],
+        dead: [["locker.visits", "ae_common_uat", 2.4]],
+        churn: [["locker.visits", 0.08]],
+        sess: [["ae_common_uat", "locker-svc", "active", "CPU", "—", 2], ["ae_common_uat", "locker-svc", "idle", "Client", "ClientRead", 2]] },
+      mobile: { k: ["15", "17", "5.1 M", "14.8%", "orange"],
+        size: [["mobile.push_log", 38], ["mobile.sessions", 22], ["mobile.devices", 5]],
+        rows: [["mobile.push_log", 164], ["mobile.sessions", 96], ["mobile.devices", 8]],
+        dead: [["mobile.push_log", "ae_common_uat", 14.8], ["mobile.sessions", "ae_common_uat", 6.6]],
+        churn: [["mobile.push_log", 4.1], ["mobile.sessions", 1.0]],
+        sess: [["ae_common_uat", "mobile-bff", "active", "CPU", "—", 9], ["ae_common_uat", "mobile-bff", "idle", "Client", "ClientRead", 8]] },
+      document: { k: ["11", "6", "640 K", "5.5%", "orange"],
+        size: [["document.files", 118], ["document.ocr_queue", 7], ["document.signatures", 3]],
+        rows: [["document.files", 44], ["document.signatures", 6], ["document.ocr_queue", 2]],
+        dead: [["document.ocr_queue", "ae_common_uat", 5.5], ["document.files", "ae_common_uat", 1.2]],
+        churn: [["document.files", 0.52], ["document.ocr_queue", 0.12]],
+        sess: [["ae_common_uat", "doc-service", "active", "IO", "DataFileRead", 3], ["ae_common_uat", "doc-service", "idle", "Client", "ClientRead", 3]] }
+    };
+  }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "am") {
+      var dt = this.domTabsFor(built.tab);
+      this.setState({ tab: built.tab, ph: null, domain: dt.length ? dt[0].slug : this.state.domain, schema: "" }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  statePill(s) {
+    if (s === "active") return "ok";
+    if (s && s.indexOf("idle in transaction") === 0) return "warn";
+    if (s === "idle") return "muted";
+    return "info";
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      estate: ["Application Monitoring", "Live application sessions, waits, and business-domain activity · Prometheus"],
+      tps: ["TPS Posting & Warehouse", "TPS posting & warehouse table footprint, dead tuples, ETL churn, sessions · Prometheus"],
+      service: ["Service CRM / Jobs / Kafka & API Gateway", "Service CRM/Jobs/Kafka & API Gateway footprint, dead tuples, sessions · Prometheus"],
+      apps: ["Charge / Locker / Mobile / Document", "Charge/Locker/Mobile/Document schema footprint, dead tuples, churn, sessions · Prometheus"],
+      repl: ["Replication & Integration · DBA Evidence", "Logical subscriptions, slot WAL, workers & DBA evidence · Prometheus"],
+      business: ["Banking Business Dashboard", "Customers, accounts, postings, VAT, Kafka & reconciliation · live read-only SQL"],
+      mgmt: ["Enterprise Core Banking Master Scorecard", "Executive scorecard: volumes, channels, risk, liquidity & adoption · live read-only SQL"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "am" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    var isDomain = tab === "tps" || tab === "service" || tab === "apps";
+    var dd = this.domData()[this.state.domain] || this.domData().tps;
+    var chipDefs = [["crm_slim", "CRM"], ["kafka_recovery", "Kafka"], ["chatbot", "Chatbot"], ["profile_management", "Profile"], ["banking_admin", "Banking Admin"], ["dashboard", "Dashboard"]];
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showEstate: tab === "estate", showDomain: isDomain, showRepl: tab === "repl", showBusiness: tab === "business", showMgmt: tab === "mgmt",
+      topCount: "8",
+      topSessRows: [
+        { db: "ae_tps_uat", app: "tps-posting-svc", state: "active", tone: "ok", wt: "CPU", we: "—", n: "14" },
+        { db: "ae_tps_uat", app: "tps-posting-svc", state: "idle", tone: "muted", wt: "Client", we: "ClientRead", n: "12" },
+        { db: "ae_common_uat", app: "mobile-bff", state: "active", tone: "ok", wt: "CPU", we: "—", n: "9" },
+        { db: "ae_tps_uat", app: "etl-loader", state: "active", tone: "ok", wt: "IO", we: "DataFileExtend", n: "8" },
+        { db: "ae_gateway_uat", app: "api-gateway", state: "active", tone: "ok", wt: "CPU", we: "—", n: "8" },
+        { db: "ae_common_uat", app: "charge-api", state: "active", tone: "ok", wt: "IO", we: "DataFileRead", n: "7" },
+        { db: "ae_tps_uat", app: "tps-batch", state: "idle in transaction", tone: "warn", wt: "Lock", we: "transactionid", n: "4" },
+        { db: "ae_service_uat", app: "kafka-recovery", state: "active", tone: "ok", wt: "IO", we: "DataFileRead", n: "5" }
+      ],
+      domTabs: this.domTabsFor(tab).map(function (t) {
+        return { label: t.label, sub: t.sub, cls: self.state.domain === t.slug ? "primary" : "", onClick: function () { self.setState({ domain: t.slug, schema: "" }, function () { self.disposeAll(); self.scheduleCharts(); }); } };
+      }),
+      showChips: tab === "service" && this.state.domain === "service",
+      chips: [{ label: "All", cls: this.state.schema === "" ? "primary" : "", onClick: function () { self.setState({ schema: "" }); } }].concat(chipDefs.map(function (c) {
+        return { label: c[1], cls: self.state.schema === c[0] ? "primary" : "", onClick: function () { self.setState({ schema: c[0] }); } };
+      })),
+      domKTables: dd.k[0], domKSess: dd.k[1], domKIns: dd.k[2], domKDead: dd.k[3], domKDeadCls: dd.k[4],
+      deadCount: String(dd.dead.length),
+      deadRows: dd.dead.map(function (r) { return { rel: r[0], db: r[1], pct: r[2].toFixed(1) + "%", tone: r[2] >= 20 ? "warn" : "muted" }; }),
+      domSessCount: String(dd.sess.length),
+      domSessRows: dd.sess.map(function (r) { return { db: r[0], app: r[1], state: r[2], tone: self.statePill(r[2]), wt: r[3], we: r[4], n: String(r[5]) }; }),
+      subRows: [
+        { db: "ae_service_uat", sub: "sub_service_to_dr", pubs: "pub_service", state: "enabled", tone: "ok" },
+        { db: "ae_tps_uat", sub: "sub_tps_to_dr", pubs: "pub_tps", state: "enabled", tone: "ok" },
+        { db: "ae_common_uat", sub: "sub_common_reporting", pubs: "pub_common", state: "disabled", tone: "muted" }
+      ],
+      workerRows: [
+        { db: "ae_tps_uat", backend: "walsender", app: "sub_tps_to_dr", n: "2" },
+        { db: "ae_service_uat", backend: "walsender", app: "sub_service_to_dr", n: "1" },
+        { db: "ae_tps_uat", backend: "logical replication apply", app: "—", n: "2" }
+      ],
+      idxRows: [
+        { idx: "tps.idx_posting_events_ts", tbl: "posting_events", db: "ae_tps_uat", size: "24.2 GiB" },
+        { idx: "whs.idx_posting_history_acct", tbl: "posting_history", db: "ae_tps_whs_uat", size: "18.9 GiB" },
+        { idx: "tps.idx_journal_batch", tbl: "posting_journal", db: "ae_tps_uat", size: "11.4 GiB" },
+        { idx: "api_gateway.idx_request_log_ts", tbl: "request_log", db: "ae_gateway_uat", size: "8.8 GiB" },
+        { idx: "mobile.idx_push_log_device", tbl: "push_log", db: "ae_common_uat", size: "6.1 GiB" }
+      ],
+      churnRows: [
+        { rel: "tps.posting_events", db: "ae_tps_uat", n: "14,200,000" },
+        { rel: "whs.posting_history", db: "ae_tps_whs_uat", n: "38,400,000" },
+        { rel: "api_gateway.request_log", db: "ae_gateway_uat", n: "9,600,000" },
+        { rel: "mobile.push_log", db: "ae_common_uat", n: "4,100,000" },
+        { rel: "kafka_recovery.events", db: "ae_service_uat", n: "2,600,000" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { estate: 1, tps: 1, service: 1, apps: 1, repl: 1, business: 1, mgmt: 1 };
+    if (h && valid[h] && h !== this.state.tab) {
+      var dt = this.domTabsFor(h);
+      this.setState({ tab: h, ph: null, domain: dt.length ? dt[0].slug : this.state.domain });
+    }
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() {
+    window.removeEventListener("resize", this._resize);
+    clearInterval(this._clock);
+    this.disposeAll();
+  }
+  disposeAll() {
+    Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {};
+  }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el);
+    c.setOption(option);
+    this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 22, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      grid: { left: opts.left || 150, right: 62, top: 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { estate: "am-state", tps: "am-size", service: "am-size", apps: "am-size", repl: "am-slots", business: "am-channels", mgmt: "am-mgmt-sessions" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "estate") {
+      this.donut("am-state", [
+        { name: "active", value: 38, itemStyle: { color: "#107c10" } },
+        { name: "idle", value: 176, itemStyle: { color: "#a78bfa" } },
+        { name: "idle in transaction", value: 24, itemStyle: { color: "#f59e0b" } },
+        { name: "other", value: 8, itemStyle: { color: "#17a2b8" } }
+      ], "246", "sessions");
+      this.hbar("am-region", ["uae", "dr"], [{ value: 168, itemStyle: { color: "#7c3aed" } }, { value: 78, itemStyle: { color: "#17a2b8" } }], { left: 60, labelFmt: "{c}" });
+      this.hbar("am-domain", ["TPS", "SERVICE", "TPS_WAREHOUSE", "COMMON"],
+        [{ value: 96, itemStyle: { color: "#7c3aed" } }, { value: 71, itemStyle: { color: "#17a2b8" } }, { value: 42, itemStyle: { color: "#f59e0b" } }, { value: 37, itemStyle: { color: "#107c10" } }], { left: 110, labelFmt: "{c}" });
+      var hrs = this.times(48, 30);
+      this.mk("am-trend", Object.assign(this.base(), {
+        grid: { left: 44, right: 16, top: 12, bottom: 22 },
+        xAxis: { type: "category", data: hrs, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 7 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "sessions", type: "line", smooth: true, showSymbol: false, data: hrs.map(function (_, i) { return Math.round(226 + 26 * Math.sin(i / 6) + Math.random() * 14); }), lineStyle: { width: 2.5, color: "#107c10" }, itemStyle: { color: "#107c10" }, areaStyle: { opacity: 0.1, color: "#107c10" } }]
+      }));
+    } else if (tab === "tps" || tab === "service" || tab === "apps") {
+      var dd = this.domData()[this.state.domain] || this.domData().tps;
+      var cols = ["#7c3aed", "#17a2b8", "#f59e0b", "#107c10", "#a78bfa"];
+      this.hbar("am-size", dd.size.map(function (r) { return r[0]; }), dd.size.map(function (r, i) { return { value: r[1], itemStyle: { color: cols[i % 5] } }; }),
+        { left: 180, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c} GiB" });
+      this.hbar("am-rows", dd.rows.map(function (r) { return r[0]; }), dd.rows.map(function (r, i) { return { value: r[1], itemStyle: { color: cols[i % 5] } }; }),
+        { left: 180, fmt: function (v) { return v + " M rows"; }, labelFmt: "{c} M" });
+      this.hbar("am-churn", dd.churn.map(function (r) { return r[0]; }), dd.churn.map(function (r) { return { value: r[1], itemStyle: { color: "#17a2b8" } }; }),
+        { left: 180, fmt: function (v) { return v + " M rows"; }, labelFmt: "{c} M" });
+    } else if (tab === "repl") {
+      this.hbar("am-slots", ["reporting_slot", "dr_slot_tps", "dr_slot_service", "pgo_backup_slot"],
+        [{ value: 4.8, itemStyle: { color: "#dc3545" } }, { value: 2.4, itemStyle: { color: "#f59e0b" } }, { value: 0.8, itemStyle: { color: "#107c10" } }, { value: 0.1, itemStyle: { color: "#107c10" } }],
+        { left: 130, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c} GiB" });
+      this.hbar("am-mod", ["tps.posting_events", "mobile.push_log", "crm_slim.cases", "charge.transactions"],
+        [{ value: 8.4, itemStyle: { color: "#f59e0b" } }, { value: 2.1, itemStyle: { color: "#f59e0b" } }, { value: 0.94, itemStyle: { color: "#107c10" } }, { value: 0.62, itemStyle: { color: "#107c10" } }],
+        { left: 160, fmt: function (v) { return v + " M rows"; }, labelFmt: "{c} M" });
+      this.hbar("am-seq", ["tps.gl_entries", "charge.transactions", "whs.reconciliation", "chatbot.conversations"],
+        [{ value: 48, itemStyle: { color: "#dc3545" } }, { value: 22, itemStyle: { color: "#f59e0b" } }, { value: 9, itemStyle: { color: "#f59e0b" } }, { value: 4, itemStyle: { color: "#107c10" } }],
+        { left: 160, fmt: function (v) { return v + " K scans"; }, labelFmt: "{c} K" });
+      this.hbar("am-lockmodes", ["AccessShareLock", "RowExclusiveLock", "ShareUpdateExclusiveLock", "RowShareLock"],
+        [{ value: 182, itemStyle: { color: "#107c10" } }, { value: 24, itemStyle: { color: "#17a2b8" } }, { value: 6, itemStyle: { color: "#f59e0b" } }, { value: 2, itemStyle: { color: "#a78bfa" } }],
+        { left: 190, labelFmt: "{c}" });
+    } else if (tab === "business") {
+      this.donut("am-channels", [
+        { name: "Mobile", value: 42, itemStyle: { color: "#7c3aed" } },
+        { name: "Branch", value: 18, itemStyle: { color: "#17a2b8" } },
+        { name: "Internet", value: 16, itemStyle: { color: "#f59e0b" } },
+        { name: "ATM", value: 14, itemStyle: { color: "#107c10" } },
+        { name: "API", value: 10, itemStyle: { color: "#a78bfa" } }
+      ], "100%", "of postings");
+      this.hbar("am-txnmix", ["Transfer", "Bill Pay", "POS", "Salary", "VAT"],
+        [{ value: 6.4, itemStyle: { color: "#7c3aed" } }, { value: 4.2, itemStyle: { color: "#17a2b8" } }, { value: 3.8, itemStyle: { color: "#f59e0b" } }, { value: 2.6, itemStyle: { color: "#107c10" } }, { value: 1.4, itemStyle: { color: "#a78bfa" } }],
+        { left: 70, fmt: function (v) { return v + " M events"; }, labelFmt: "{c} M" });
+      var bt = this.times(48, 30);
+      this.mk("am-eventtrend", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 46, right: 12, top: 28, bottom: 22 },
+        xAxis: { type: "category", data: bt, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 11 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "postings", type: "line", smooth: true, showSymbol: false, data: bt.map(function (_, i) { return Math.round(380 + 130 * Math.sin(i / 7) + Math.random() * 40); }), lineStyle: { width: 2, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" } },
+          { name: "reversals", type: "line", smooth: true, showSymbol: false, data: bt.map(function () { return Math.round(6 + Math.random() * 10); }), lineStyle: { width: 1.5, color: "#dc3545" }, itemStyle: { color: "#dc3545" } },
+          { name: "fees", type: "line", smooth: true, showSymbol: false, data: bt.map(function (_, i) { return Math.round(48 + 16 * Math.sin(i / 7) + Math.random() * 8); }), lineStyle: { width: 1.5, color: "#f59e0b" }, itemStyle: { color: "#f59e0b" } }
+        ]
+      }));
+    } else if (tab === "mgmt") {
+      this.hbar("am-mgmt-sessions", ["active", "idle", "idle in tx", "fastpath"],
+        [{ value: 38, itemStyle: { color: "#107c10" } }, { value: 176, itemStyle: { color: "#a78bfa" } }, { value: 24, itemStyle: { color: "#f59e0b" } }, { value: 8, itemStyle: { color: "#17a2b8" } }],
+        { left: 80, labelFmt: "{c}" });
+      this.hbar("am-mgmt-size", ["ae_tps_whs_uat", "ae_tps_uat", "ae_common_uat", "ae_service_uat", "ae_gateway_uat"],
+        [{ value: 1340, itemStyle: { color: "#7c3aed" } }, { value: 420, itemStyle: { color: "#17a2b8" } }, { value: 260, itemStyle: { color: "#f59e0b" } }, { value: 120, itemStyle: { color: "#107c10" } }, { value: 84, itemStyle: { color: "#a78bfa" } }],
+        { left: 110, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c}" });
+      this.hbar("am-mgmt-risk", ["analyze backlog", "lock waits", "dead > 20%", "failed logins"],
+        [{ value: 12, itemStyle: { color: "#f59e0b" } }, { value: 8, itemStyle: { color: "#dc3545" } }, { value: 3, itemStyle: { color: "#f59e0b" } }, { value: 1, itemStyle: { color: "#107c10" } }],
+        { left: 110, labelFmt: "{c}" });
+      this.donut("am-mgmt-adoption", [
+        { name: "Mobile", value: 46, itemStyle: { color: "#7c3aed" } },
+        { name: "Internet", value: 21, itemStyle: { color: "#17a2b8" } },
+        { name: "Branch", value: 15, itemStyle: { color: "#f59e0b" } },
+        { name: "ATM", value: 12, itemStyle: { color: "#107c10" } },
+        { name: "API", value: 6, itemStyle: { color: "#a78bfa" } }
+      ], "1.28 M", "customers");
+      this.hbar("am-mgmt-locks", ["AccessShareLock", "RowExclusiveLock", "ShareUpdateExclusiveLock", "RowShareLock"],
+        [{ value: 182, itemStyle: { color: "#107c10" } }, { value: 24, itemStyle: { color: "#17a2b8" } }, { value: 6, itemStyle: { color: "#f59e0b" } }, { value: 2, itemStyle: { color: "#a78bfa" } }],
+        { left: 190, labelFmt: "{c}" });
+    }
+  }
+}
+</script>
+</body>
+</html>

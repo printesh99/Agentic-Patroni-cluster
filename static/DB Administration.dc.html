@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes dbPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="db-"] { width: 100%; min-width: 0; overflow: hidden; }
+.cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.cfg-grid .field.wide { grid-column:1 / -1; }
+.chk { display:flex; gap:6px; align-items:center; font-size:12px; color:#5b6b7b; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">DB Administration</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="pill danger" style="margin-right:8px"><span class="dot"></span>guarded · dry-run + approval</span>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:dbPulse 2s infinite"></span>last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDatabases }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Databases" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn sm primary">Validate Create</button>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>pg_database · live catalog</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Databases</div><div class="value">14</div><div class="sub">inventoried</div></div>
+          <div class="kpi green"><div class="label">Connectable</div><div class="value">11</div><div class="sub">allow_connections</div></div>
+          <div class="kpi teal"><div class="label">Templates</div><div class="value">2</div><div class="sub">template0/1</div></div>
+          <div class="kpi orange"><div class="label">Total size</div><div class="value">3.4 TiB</div><div class="sub">on-disk</div></div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Database size</div><div class="bd"><div id="db-size" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Active connections</div><div class="bd"><div id="db-conn" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Connection posture</div><div class="bd"><div id="db-posture" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Database inventory <span class="meta">14 rows</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Name</th><th>Owner</th><th>Encoding</th><th>Collation</th><th class="num">Size</th><th class="num">Conn</th><th>Flags</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ dbRows }}" as="d" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ d.name }}</td><td class="mono txt-xs">{{ d.owner }}</td><td class="txt-xs">{{ d.enc }}</td><td class="txt-xs muted">{{ d.coll }}</td><td class="num mono txt-xs">{{ d.size }}</td><td class="num mono txt-xs">{{ d.conn }}</td><td><span class="pill {{ d.tone }}" style="white-space:nowrap">{{ d.flag }}</span></td><td class="num"><button class="btn ghost sm">Detail</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLive }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Live Connect" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:180px"><label>Database</label><select><option>ae_tps_uat</option><option>ae_service_uat</option><option>ae_common_uat</option><option>postgres</option></select></div>
+          <div class="field" style="margin:0;min-width:150px"><label>Role</label><select><option>viewer (read-only)</option><option>operator</option><option>dba</option></select></div>
+          <button class="btn sm primary">Connect</button>
+          <div style="flex:1"></div>
+          <span class="pill ok"><span class="dot"></span>connected · pgbouncer pool</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Backend PID</div><div class="value">184402</div><div class="sub">session established</div></div>
+          <div class="kpi navy"><div class="label">Server version</div><div class="value">16.3</div><div class="sub">PostgreSQL</div></div>
+          <div class="kpi teal"><div class="label">Search path</div><div class="value">public</div><div class="sub">default</div></div>
+          <div class="kpi orange"><div class="label">Statement timeout</div><div class="value">30 s</div><div class="sub">read session</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Live query <span class="meta">read-only · SELECT / EXPLAIN only</span></div>
+          <div class="bd">
+            <div style="background:#0b1720;border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#d7f5e9;line-height:1.6">
+              <div><span style="color:#7ee3c7">SELECT</span> datname, numbackends, xact_commit, xact_rollback</div>
+              <div><span style="color:#7ee3c7">FROM</span> pg_stat_database <span style="color:#7ee3c7">WHERE</span> datname = <span style="color:#f6c177">'ae_tps_uat'</span>;</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm primary">Run</button><button class="btn sm">Explain</button><span style="flex:1"></span><span class="muted txt-xs">1 row · 12 ms</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Result</div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>datname</th><th class="num">numbackends</th><th class="num">xact_commit</th><th class="num">xact_rollback</th></tr></thead>
+              <tbody><tr><td class="mono txt-xs">ae_tps_uat</td><td class="num mono txt-xs">42</td><td class="num mono txt-xs">184,220,113</td><td class="num mono txt-xs">2,418</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showWorkbench }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="SQL Workbench" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:180px"><label>Database</label><select><option>ae_tps_uat</option><option>ae_service_uat</option><option>ae_common_uat</option></select></div>
+          <div class="field" style="margin:0;min-width:150px"><label>Run as</label><select><option>viewer (read-only)</option><option>operator</option></select></div>
+          <div style="flex:1"></div>
+          <span class="pill danger"><span class="dot"></span>DML blocked in read session</span>
+        </div></div>
+        <div class="grid-2" style="grid-template-columns:220px 1fr;display:grid;gap:12px">
+          <div class="card">
+            <div class="hd">Saved queries</div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:6px;padding:10px">
+              <sc-for list="{{ savedQueries }}" as="q" hint-placeholder-count="5">
+                <button class="btn ghost sm {{ q.cls }}" style="justify-content:flex-start;text-align:left">{{ q.name }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+            <div class="card">
+              <div class="hd">Editor <span class="meta">top slow statements</span></div>
+              <div class="bd">
+                <div style="background:#0b1720;border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#d7f5e9;line-height:1.6;min-height:120px">
+                  <div><span style="color:#7ee3c7">SELECT</span> queryid, calls, mean_exec_time, total_exec_time</div>
+                  <div><span style="color:#7ee3c7">FROM</span> pg_stat_statements</div>
+                  <div><span style="color:#7ee3c7">ORDER BY</span> total_exec_time <span style="color:#7ee3c7">DESC</span> <span style="color:#7ee3c7">LIMIT</span> <span style="color:#f6c177">10</span>;</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm primary">Run (⌘⏎)</button><button class="btn sm">Explain</button><button class="btn sm">Format</button><span style="flex:1"></span><span class="muted txt-xs">10 rows · 34 ms</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="hd">Result <span class="meta">10 rows</span></div>
+              <div class="bd" style="padding:0;overflow-x:auto">
+                <table class="table" style="width:100%">
+                  <thead><tr><th class="num">queryid</th><th class="num">calls</th><th class="num">mean ms</th><th class="num">total ms</th><th>statement</th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{ wbResultRows }}" as="w" hint-placeholder-count="6">
+                      <tr><td class="num mono txt-xs">{{ w.id }}</td><td class="num mono txt-xs">{{ w.calls }}</td><td class="num mono txt-xs">{{ w.mean }}</td><td class="num mono txt-xs">{{ w.total }}</td><td><span class="mono txt-xs" style="display:inline-block;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ w.q }}</span></td></tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSchemas }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Schemas and Objects" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:200px"><label>Database</label><select><option>ae_tps_uat</option><option>ae_service_uat</option><option>ae_common_uat</option></select></div>
+          <div class="field" style="margin:0;min-width:180px"><label>Schema</label><select><option>tps</option><option>public</option><option>whs</option></select></div>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>live catalog</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi teal"><div class="label">Schemas</div><div class="value">9</div><div class="sub">in database</div></div>
+          <div class="kpi green"><div class="label">Tables</div><div class="value">64</div><div class="sub">in tps</div></div>
+          <div class="kpi navy"><div class="label">Indexes</div><div class="value">142</div><div class="sub">in tps</div></div>
+          <div class="kpi orange"><div class="label">Selected schema</div><div class="value">tps</div><div class="sub">current</div></div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Object mix</div><div class="bd"><div id="db-objmix" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Table size</div><div class="bd"><div id="db-tblsize" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Estimated rows</div><div class="bd"><div id="db-tblrows" style="height:230px"></div></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Tables <span class="meta">64 rows</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Name</th><th>Type</th><th>Owner</th><th class="num">Rows est.</th><th class="num">Size</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ tableRows }}" as="t" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ t.name }}</td><td class="txt-xs">{{ t.type }}</td><td class="mono txt-xs">{{ t.owner }}</td><td class="num mono txt-xs">{{ t.rows }}</td><td class="num mono txt-xs">{{ t.size }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Indexes <span class="meta">142 rows</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Index</th><th>Table</th><th>Definition</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ indexRows }}" as="i" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ i.idx }}</td><td class="mono txt-xs">{{ i.tbl }}</td><td><span class="mono txt-xs muted" style="display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ i.def }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showRoles }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Users and Roles" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:300px"><label>Search users, databases, roles</label><input placeholder="username, database, role"></div>
+          <button class="btn sm">Refresh</button>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>pg_roles / pg_authid / pgbouncer.get_auth</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Roles</div><div class="value">28</div><div class="sub">pg_roles</div></div>
+          <div class="kpi green"><div class="label">Login roles</div><div class="value">17</div><div class="sub">rolcanlogin</div></div>
+          <div class="kpi red"><div class="label">Superusers</div><div class="value">2</div><div class="sub">rolsuper</div></div>
+          <div class="kpi orange"><div class="label">Expiring &lt; 30d</div><div class="value">3</div><div class="sub">rolvaliduntil</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Role attributes <span class="meta">28 roles · pg_roles</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Role</th><th>Login</th><th>Superuser</th><th>Createdb</th><th>Createrole</th><th>Repl</th><th class="num">Conn limit</th><th>Valid until</th><th>Member of</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ roleRows }}" as="r" hint-placeholder-count="6">
+                  <tr class="{{ r.rowcls }}"><td class="mono txt-xs">{{ r.role }}</td><td><span class="pill {{ r.loginTone }}" style="white-space:nowrap">{{ r.login }}</span></td><td><span class="pill {{ r.superTone }}" style="white-space:nowrap">{{ r.super }}</span></td><td class="txt-xs">{{ r.createdb }}</td><td class="txt-xs">{{ r.createrole }}</td><td class="txt-xs">{{ r.repl }}</td><td class="num mono txt-xs">{{ r.conn }}</td><td class="mono txt-xs muted">{{ r.valid }}</td><td class="txt-xs muted">{{ r.memberOf }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="risk-banner info card" style="border-left:3px solid #2a7de1"><div class="bd txt-xs muted" style="padding:10px 16px">Creating or altering roles requires the DBA role; dropping requires Admin. Submitted changes create dry-run approval jobs — they do not take effect immediately. SUPERUSER is never granted.</div></div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Create Role <span class="meta">dry-run job</span></div><div class="bd">
+            <div class="cfg-grid">
+              <div class="field wide"><label>Role name</label><input placeholder="app_readonly"></div>
+              <label class="chk"><input type="checkbox" checked="checked"> LOGIN</label>
+              <label class="chk"><input type="checkbox"> CREATEDB</label>
+              <label class="chk"><input type="checkbox"> CREATEROLE</label>
+              <label class="chk"><input type="checkbox"> REPLICATION</label>
+              <div class="field"><label>Connection limit</label><input placeholder="unlimited"></div>
+              <div class="field"><label>Valid until</label><input placeholder="2027-01-01"></div>
+              <div class="field wide"><label>Member of</label><input placeholder="app_readonly, reporting"></div>
+              <div class="field wide"><label>Reason</label><input placeholder="why this role is needed"></div>
+            </div>
+            <button class="btn sm primary" style="margin-top:8px">Create Role</button>
+          </div></div>
+          <div class="card"><div class="hd">Alter Role <span class="meta">dry-run job</span></div><div class="bd">
+            <div class="cfg-grid">
+              <div class="field wide"><label>Role</label><select><option>select role…</option><option>app_readonly</option><option>reporting</option></select></div>
+              <div class="field"><label>LOGIN</label><select><option>(no change)</option><option>enable</option><option>disable</option></select></div>
+              <div class="field"><label>CREATEDB</label><select><option>(no change)</option><option>enable</option><option>disable</option></select></div>
+              <div class="field"><label>Connection limit</label><input placeholder="(no change)"></div>
+              <div class="field"><label>Valid until</label><input placeholder="(no change)"></div>
+              <div class="field wide"><label>Reason</label><input></div>
+            </div>
+            <button class="btn sm primary" style="margin-top:8px">Alter Role</button>
+          </div></div>
+          <div class="card"><div class="hd">Drop Role <span class="meta">admin approval</span></div><div class="bd">
+            <div class="cfg-grid">
+              <div class="field wide"><label>Role</label><select><option>select role…</option><option>legacy_batch</option></select></div>
+              <div class="field wide"><label>Reason</label><input placeholder="decommission reason"></div>
+            </div>
+            <button class="btn sm danger" style="margin-top:8px">Drop Role</button>
+            <div class="muted txt-xs" style="margin-top:8px">Superuser and pg_* roles cannot be dropped here.</div>
+          </div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPrivileges }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Privileges" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:180px"><label>Database</label><select><option>ae_tps_uat</option><option>ae_service_uat</option></select></div>
+          <div class="field" style="margin:0;min-width:150px"><label>Schema</label><select><option>tps</option><option>public</option></select></div>
+          <div class="field" style="margin:0;min-width:170px"><label>Grantee</label><select><option>all roles</option><option>app_readonly</option><option>reporting</option></select></div>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>information_schema.role_table_grants</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Grants</div><div class="value">412</div><div class="sub">object × grantee</div></div>
+          <div class="kpi red"><div class="label">Public grants</div><div class="value">6</div><div class="sub">review recommended</div></div>
+          <div class="kpi orange"><div class="label">Write grants</div><div class="value">88</div><div class="sub">INSERT/UPDATE/DELETE</div></div>
+          <div class="kpi green"><div class="label">Default privileges</div><div class="value">4</div><div class="sub">ALTER DEFAULT rules</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Grants by privilege type</div><div class="bd"><div id="db-privtype" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Grants by grantee</div><div class="bd"><div id="db-privgrantee" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Object privileges <span class="meta">tps schema</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Object</th><th>Type</th><th>Grantee</th><th>Privileges</th><th>Grantable</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ privRows }}" as="p" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ p.obj }}</td><td class="txt-xs">{{ p.type }}</td><td class="mono txt-xs">{{ p.grantee }}</td><td class="txt-xs">{{ p.privs }}</td><td><span class="pill {{ p.tone }}" style="white-space:nowrap">{{ p.grantable }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showHba }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="HBA Rules" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span class="pill muted"><span class="dot"></span>pg_hba_file_rules · managed by Patroni</span>
+          <div style="flex:1"></div>
+          <span class="pill warn"><span class="dot"></span>edits via Patroni DCS &amp; reload</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Rules</div><div class="value">12</div><div class="sub">active entries</div></div>
+          <div class="kpi green"><div class="label">scram-sha-256</div><div class="value">9</div><div class="sub">password methods</div></div>
+          <div class="kpi teal"><div class="label">cert / md5</div><div class="value">2</div><div class="sub">replication + legacy</div></div>
+          <div class="kpi red"><div class="label">trust rules</div><div class="value">1</div><div class="sub">localhost only</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">pg_hba.conf rules <span class="meta">evaluated top-to-bottom</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th class="num">#</th><th>Type</th><th>Database</th><th>User</th><th>Address</th><th>Method</th><th>Options</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ hbaRows }}" as="h" hint-placeholder-count="6">
+                  <tr><td class="num mono txt-xs">{{ h.n }}</td><td class="mono txt-xs">{{ h.type }}</td><td class="txt-xs">{{ h.db }}</td><td class="txt-xs">{{ h.user }}</td><td class="mono txt-xs">{{ h.addr }}</td><td><span class="pill {{ h.tone }}" style="white-space:nowrap">{{ h.method }}</span></td><td class="txt-xs muted">{{ h.opts }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showExtensions }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Extensions" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:180px"><label>Database</label><select><option>ae_tps_uat</option><option>ae_service_uat</option><option>ae_common_uat</option></select></div>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>pg_extension · pg_available_extensions</span>
+        </div></div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Installed</div><div class="value">11</div><div class="sub">pg_extension</div></div>
+          <div class="kpi navy"><div class="label">Available</div><div class="value">48</div><div class="sub">in image</div></div>
+          <div class="kpi orange"><div class="label">Update available</div><div class="value">2</div><div class="sub">version behind</div></div>
+          <div class="kpi teal"><div class="label">Allow-listed</div><div class="value">Yes</div><div class="sub">governance policy</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Installed extensions <span class="meta">11</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Extension</th><th>Schema</th><th class="num">Installed</th><th class="num">Default</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ extRows }}" as="e" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ e.name }}</td><td class="txt-xs muted">{{ e.schema }}</td><td class="num mono txt-xs">{{ e.installed }}</td><td class="num mono txt-xs">{{ e.def }}</td><td><span class="pill {{ e.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ e.status }}</span></td><td class="num"><sc-if value="{{ e.canUpdate }}" hint-placeholder-val="{{ false }}"><button class="btn ghost sm">Update</button></sc-if></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /clusters/&lt;id&gt;/databases, /roles, /schemas and pg catalog payloads — values shown are demo. All mutations are dry-run + approval.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "databases", group: "admin", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "db") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      databases: ["Databases", "pg_database inventory, size and connection posture · guarded create/drop"],
+      live: ["Live Connect", "Read-only interactive session through the PgBouncer pool"],
+      workbench: ["SQL Workbench", "Saved queries and read-only SQL editor with EXPLAIN · DML blocked"],
+      schemas: ["Schemas & Objects", "Live catalog: schemas, tables and indexes per database"],
+      roles: ["Users & Roles", "pg_roles attributes with guarded create / alter / drop (dry-run jobs)"],
+      privileges: ["Privileges", "Object grants by role from information_schema.role_table_grants"],
+      hba: ["HBA Rules", "pg_hba_file_rules — client authentication, managed via Patroni DCS"],
+      extensions: ["Extensions", "Installed vs available extensions with governance allow-list"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "db" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showDatabases: tab === "databases", showLive: tab === "live", showWorkbench: tab === "workbench", showSchemas: tab === "schemas",
+      showRoles: tab === "roles", showPrivileges: tab === "privileges", showHba: tab === "hba", showExtensions: tab === "extensions",
+      dbRows: [
+        { name: "ae_tps_uat", owner: "tps_owner", enc: "UTF8", coll: "en_US.utf8", size: "1.2 TiB", conn: "42", flag: "connect", tone: "ok" },
+        { name: "ae_tps_whs_uat", owner: "tps_owner", enc: "UTF8", coll: "en_US.utf8", size: "1.3 TiB", conn: "18", flag: "connect", tone: "ok" },
+        { name: "ae_service_uat", owner: "svc_owner", enc: "UTF8", coll: "en_US.utf8", size: "412 GiB", conn: "57", flag: "connect", tone: "ok" },
+        { name: "ae_gateway_uat", owner: "gw_owner", enc: "UTF8", coll: "en_US.utf8", size: "84 GiB", conn: "14", flag: "connect", tone: "ok" },
+        { name: "ae_common_uat", owner: "common_owner", enc: "UTF8", coll: "en_US.utf8", size: "260 GiB", conn: "63", flag: "connect", tone: "ok" },
+        { name: "template0", owner: "postgres", enc: "UTF8", coll: "C", size: "8 MiB", conn: "0", flag: "template", tone: "muted" }
+      ],
+      savedQueries: [
+        { name: "Top total-time SQL", cls: "active" }, { name: "Active sessions & waits", cls: "" }, { name: "Table bloat > 10%", cls: "" },
+        { name: "Unused indexes (90d)", cls: "" }, { name: "Replication slot lag", cls: "" }
+      ],
+      wbResultRows: [
+        { id: "4821090337", calls: "1,204", mean: "1.37", total: "1,650", q: "SELECT * FROM stock WHERE warehouse_id = $1 AND qty < reorder_level" },
+        { id: "3358810226", calls: "96", mean: "31.1", total: "2,986", q: "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1" },
+        { id: "8237441905", calls: "18,440", mean: "0.15", total: "2,766", q: "SELECT o.*, li.* FROM orders o JOIN line_items li ON li.order_id = o.id" },
+        { id: "6650912834", calls: "2,033", mean: "0.48", total: "976", q: "SELECT * FROM payments WHERE status = $1 ORDER BY created_at DESC LIMIT 50" },
+        { id: "1093822741", calls: "42,110", mean: "0.02", total: "842", q: "UPDATE orders SET status = $1 WHERE id = $2" },
+        { id: "9920114882", calls: "612", mean: "1.02", total: "624", q: "INSERT INTO audit.event_log SELECT * FROM staging_events" }
+      ],
+      tableRows: [
+        { name: "posting_events", type: "table", owner: "tps_owner", rows: "412,000,000", size: "96 GiB" },
+        { name: "posting_journal", type: "table", owner: "tps_owner", rows: "188,000,000", size: "64 GiB" },
+        { name: "gl_entries", type: "table", owner: "tps_owner", rows: "96,000,000", size: "18 GiB" },
+        { name: "txn_batch", type: "table", owner: "tps_owner", rows: "41,000,000", size: "22 GiB" },
+        { name: "posting_audit", type: "table", owner: "tps_owner", rows: "12,000,000", size: "9 GiB" }
+      ],
+      indexRows: [
+        { idx: "idx_posting_events_ts", tbl: "posting_events", def: "CREATE INDEX … USING btree (created_at)" },
+        { idx: "idx_posting_events_wh", tbl: "posting_events", def: "CREATE INDEX … USING btree (warehouse_id, qty)" },
+        { idx: "idx_journal_batch", tbl: "posting_journal", def: "CREATE INDEX … USING btree (batch_id)" },
+        { idx: "gl_entries_pkey", tbl: "gl_entries", def: "CREATE UNIQUE INDEX … USING btree (id)" },
+        { idx: "idx_txn_batch_state", tbl: "txn_batch", def: "CREATE INDEX … USING btree (state)" }
+      ],
+      roleRows: [
+        { role: "postgres", rowcls: "row-danger", login: "yes", loginTone: "ok", super: "yes", superTone: "danger", createdb: "yes", createrole: "yes", repl: "yes", conn: "unlimited", valid: "never", memberOf: "—" },
+        { role: "tps_owner", rowcls: "", login: "yes", loginTone: "ok", super: "no", superTone: "muted", createdb: "no", createrole: "no", repl: "no", conn: "100", valid: "never", memberOf: "app_write" },
+        { role: "app_readonly", rowcls: "", login: "yes", loginTone: "ok", super: "no", superTone: "muted", createdb: "no", createrole: "no", repl: "no", conn: "50", valid: "2027-01-01", memberOf: "—" },
+        { role: "reporting", rowcls: "", login: "yes", loginTone: "ok", super: "no", superTone: "muted", createdb: "no", createrole: "no", repl: "no", conn: "20", valid: "2026-09-01", memberOf: "app_readonly" },
+        { role: "_crunchyrepl", rowcls: "", login: "yes", loginTone: "ok", super: "no", superTone: "muted", createdb: "no", createrole: "no", repl: "yes", conn: "10", valid: "never", memberOf: "—" },
+        { role: "pg_monitor", rowcls: "", login: "no", loginTone: "muted", super: "no", superTone: "muted", createdb: "no", createrole: "no", repl: "no", conn: "unlimited", valid: "never", memberOf: "—" }
+      ],
+      privRows: [
+        { obj: "tps.posting_events", type: "table", grantee: "app_readonly", privs: "SELECT", grantable: "no", tone: "muted" },
+        { obj: "tps.posting_events", type: "table", grantee: "tps_owner", privs: "ALL", grantable: "yes", tone: "info" },
+        { obj: "tps.posting_journal", type: "table", grantee: "reporting", privs: "SELECT", grantable: "no", tone: "muted" },
+        { obj: "tps.txn_batch", type: "table", grantee: "app_write", privs: "SELECT, INSERT, UPDATE", grantable: "no", tone: "warn" },
+        { obj: "tps.gl_entries", type: "table", grantee: "PUBLIC", privs: "SELECT", grantable: "no", tone: "danger" },
+        { obj: "tps.posting_seq", type: "sequence", grantee: "app_write", privs: "USAGE", grantable: "no", tone: "muted" }
+      ],
+      hbaRows: [
+        { n: "1", type: "local", db: "all", user: "postgres", addr: "—", method: "peer", tone: "muted", opts: "" },
+        { n: "2", type: "host", db: "all", user: "all", addr: "127.0.0.1/32", method: "trust", tone: "danger", opts: "localhost" },
+        { n: "3", type: "hostssl", db: "replication", user: "_crunchyrepl", addr: "10.0.0.0/8", method: "cert", tone: "ok", opts: "clientcert=verify-full" },
+        { n: "4", type: "hostssl", db: "ae_tps_uat", user: "tps_owner", addr: "10.128.0.0/14", method: "scram-sha-256", tone: "ok", opts: "" },
+        { n: "5", type: "hostssl", db: "all", user: "+app_readonly", addr: "10.128.0.0/14", method: "scram-sha-256", tone: "ok", opts: "" },
+        { n: "6", type: "host", db: "all", user: "legacy_svc", addr: "10.130.4.0/24", method: "md5", tone: "warn", opts: "deprecated" }
+      ],
+      extRows: [
+        { name: "pg_stat_statements", schema: "public", installed: "1.10", def: "1.10", status: "current", tone: "ok", canUpdate: false },
+        { name: "pgaudit", schema: "public", installed: "1.7", def: "1.7", status: "current", tone: "ok", canUpdate: false },
+        { name: "pg_cron", schema: "cron", installed: "1.5", def: "1.6", status: "update", tone: "warn", canUpdate: true },
+        { name: "postgres_fdw", schema: "public", installed: "1.1", def: "1.1", status: "current", tone: "ok", canUpdate: false },
+        { name: "pgvector", schema: "public", installed: "0.6.0", def: "0.7.0", status: "update", tone: "warn", canUpdate: true },
+        { name: "hypopg", schema: "public", installed: "1.4.1", def: "1.4.1", status: "current", tone: "ok", canUpdate: false }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { databases: 1, live: 1, workbench: 1, schemas: 1, roles: 1, privileges: 1, hba: 1, extensions: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 20, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      grid: { left: opts.left || 130, right: 62, top: 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "bar", data: data, barWidth: 13, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { databases: "db-size", schemas: "db-objmix", privileges: "db-privtype" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab, cols = ["#7c3aed", "#17a2b8", "#f59e0b", "#107c10", "#a78bfa"];
+    if (tab === "databases") {
+      this.hbar("db-size", ["ae_tps_whs_uat", "ae_tps_uat", "ae_service_uat", "ae_common_uat", "ae_gateway_uat"],
+        [{ value: 1330, itemStyle: { color: "#7c3aed" } }, { value: 1200, itemStyle: { color: "#17a2b8" } }, { value: 412, itemStyle: { color: "#f59e0b" } }, { value: 260, itemStyle: { color: "#107c10" } }, { value: 84, itemStyle: { color: "#a78bfa" } }],
+        { left: 120, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c}" });
+      this.hbar("db-conn", ["ae_common_uat", "ae_service_uat", "ae_tps_uat", "ae_tps_whs_uat", "ae_gateway_uat"],
+        [{ value: 63, itemStyle: { color: "#107c10" } }, { value: 57, itemStyle: { color: "#17a2b8" } }, { value: 42, itemStyle: { color: "#7c3aed" } }, { value: 18, itemStyle: { color: "#f59e0b" } }, { value: 14, itemStyle: { color: "#a78bfa" } }],
+        { left: 120, labelFmt: "{c}" });
+      this.donut("db-posture", [
+        { name: "Connectable", value: 11, itemStyle: { color: "#107c10" } },
+        { name: "Templates", value: 2, itemStyle: { color: "#a78bfa" } },
+        { name: "Blocked", value: 1, itemStyle: { color: "#f59e0b" } }
+      ], "14", "databases");
+    } else if (tab === "schemas") {
+      this.donut("db-objmix", [
+        { name: "Tables", value: 64, itemStyle: { color: "#107c10" } },
+        { name: "Indexes", value: 142, itemStyle: { color: "#17a2b8" } }
+      ], "206", "objects");
+      this.hbar("db-tblsize", ["posting_events", "posting_journal", "txn_batch", "gl_entries", "posting_audit"],
+        [{ value: 96, itemStyle: { color: cols[0] } }, { value: 64, itemStyle: { color: cols[1] } }, { value: 22, itemStyle: { color: cols[2] } }, { value: 18, itemStyle: { color: cols[3] } }, { value: 9, itemStyle: { color: cols[4] } }],
+        { left: 130, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c}" });
+      this.hbar("db-tblrows", ["posting_events", "posting_journal", "gl_entries", "txn_batch", "posting_audit"],
+        [{ value: 412, itemStyle: { color: cols[0] } }, { value: 188, itemStyle: { color: cols[1] } }, { value: 96, itemStyle: { color: cols[2] } }, { value: 41, itemStyle: { color: cols[3] } }, { value: 12, itemStyle: { color: cols[4] } }],
+        { left: 130, fmt: function (v) { return v + " M rows"; }, labelFmt: "{c} M" });
+    } else if (tab === "privileges") {
+      this.donut("db-privtype", [
+        { name: "SELECT", value: 224, itemStyle: { color: "#107c10" } },
+        { name: "INSERT", value: 78, itemStyle: { color: "#17a2b8" } },
+        { name: "UPDATE", value: 62, itemStyle: { color: "#f59e0b" } },
+        { name: "DELETE", value: 34, itemStyle: { color: "#dc3545" } },
+        { name: "USAGE", value: 14, itemStyle: { color: "#a78bfa" } }
+      ], "412", "grants");
+      this.hbar("db-privgrantee", ["tps_owner", "app_write", "app_readonly", "reporting", "PUBLIC"],
+        [{ value: 148, itemStyle: { color: cols[0] } }, { value: 122, itemStyle: { color: cols[1] } }, { value: 84, itemStyle: { color: cols[2] } }, { value: 52, itemStyle: { color: cols[3] } }, { value: 6, itemStyle: { color: "#dc3545" } }],
+        { left: 110, labelFmt: "{c}" });
+    }
+  }
+}
+</script>
+</body>
+</html>

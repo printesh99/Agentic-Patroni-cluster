@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes piPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="pi-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Performance Insights</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:piPulse 2s infinite"></span>live · refreshed {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet. Ask me to design it next.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showExplorer }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Metrics Explorer" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:220px"><label>Metric</label><select><option>connections_active</option><option>tps</option><option>cache_hit_ratio</option><option>storage_bytes</option><option>replication_lag_bytes</option></select></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Range</label><select><option>6h</option><option selected="selected">24h</option><option>7d</option><option>30d</option></select></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Rollup</label><select><option>raw</option><option selected="selected">5m avg</option><option>1h avg</option></select></div>
+            <button class="btn sm primary">Plot</button>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>metric_samples · console store</span>
+          </div>
+        </div>
+        <div class="card"><div class="hd">connections_active <span class="meta">24 h · 5m avg · with anomaly bands</span></div><div class="bd"><div id="pi-explorer" style="height:300px"></div></div></div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">TPS <span class="meta">committed + rolled back</span></div><div class="bd"><div id="pi-tps" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Cache hit ratio <span class="meta">%</span></div><div class="bd"><div id="pi-cache" style="height:230px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDbload }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="DB Load Timeline" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Avg active sessions</div><div class="value">6.8</div><div class="sub">last hour · AAS</div></div>
+          <div class="kpi orange"><div class="label">Peak AAS</div><div class="value">14.2</div><div class="sub">17:05 · IO spike</div></div>
+          <div class="kpi navy"><div class="label">vCPU line</div><div class="value">8</div><div class="sub">saturation reference</div></div>
+          <div class="kpi teal"><div class="label">Dominant wait</div><div class="value">IO</div><div class="sub">DataFileRead</div></div>
+        </div>
+        <div class="card"><div class="hd">DB load by wait class <span class="meta">average active sessions · 6 h · stacked</span></div><div class="bd"><div id="pi-dbload" style="height:320px"></div></div></div>
+        <div class="card">
+          <div class="hd">Load by database</div>
+          <div class="bd"><div id="pi-loaddb" style="height:230px"></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showWaits }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Wait Events" style="display:flex;flex-direction:column;gap:12px">
+        <div class="grid-2">
+          <div class="card"><div class="hd">Wait classes <span class="meta">sampled active sessions</span></div><div class="bd"><div id="pi-waitclass" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Top wait events</div><div class="bd"><div id="pi-waitevents" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Wait event detail <span class="meta">last 15 min samples</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Wait event</th><th>Class</th><th class="num">Samples</th><th class="num">% of load</th><th>Typical cause</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ waitRows }}" as="w" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ w.event }}</td><td><span class="pill {{ w.tone }}">{{ w.cls }}</span></td><td class="num mono txt-xs">{{ w.n }}</td><td class="num mono txt-xs">{{ w.pct }}</td><td class="muted txt-xs">{{ w.cause }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showVacuum }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Vacuum and Bloat" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi orange"><div class="label">Tables &gt; 20% dead</div><div class="value">2</div><div class="sub">bloat candidates</div></div>
+          <div class="kpi teal"><div class="label">Autovacuum workers</div><div class="value">2 / 3</div><div class="sub">busy now</div></div>
+          <div class="kpi navy"><div class="label">Oldest xmin age</div><div class="value">18 M</div><div class="sub">wraparound at 200 M</div></div>
+          <div class="kpi green"><div class="label">Vacuums (24 h)</div><div class="value">184</div><div class="sub">auto + manual</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Dead tuple leaders <span class="meta">dead %</span></div><div class="bd"><div id="pi-dead" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Estimated bloat <span class="meta">GiB reclaimable</span></div><div class="bd"><div id="pi-bloat" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Autovacuum activity <span class="meta">pg_stat_user_tables</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Table</th><th class="num">Dead tuples</th><th class="num">Dead %</th><th>Last autovacuum</th><th class="num">Autovacuums</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ vacRows }}" as="v" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ v.rel }}</td><td class="num mono txt-xs">{{ v.dead }}</td><td class="num mono txt-xs">{{ v.pct }}</td><td class="txt-xs">{{ v.last }}</td><td class="num mono txt-xs">{{ v.count }}</td><td><span class="pill {{ v.tone }}"><span class="dot"></span>{{ v.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPlans }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Plan Explorer" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:280px"><label>Statement</label><select><option>4821090337 · SELECT * FROM stock WHERE warehouse_id = $1 …</option><option>8237441905 · SELECT o.*, li.* FROM orders o JOIN line_items …</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Plan source</label><select><option selected="selected">auto_explain</option><option>EXPLAIN ANALYZE</option></select></div>
+            <button class="btn sm primary">Load plan</button>
+            <div style="flex:1"></div>
+            <span class="pill danger"><span class="dot"></span>plan flip detected · Jul 17</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Execution plan <span class="meta">queryid 4821090337 · actual, buffers</span></div>
+            <div class="bd" style="padding:8px 16px 14px">
+              <sc-for list="{{ planRows }}" as="p" hint-placeholder-count="4">
+                <div style="display:flex;gap:10px;align-items:baseline;padding:7px 0 7px {{ p.pad }};border-bottom:1px solid #f2f3f7">
+                  <span class="mono txt-xs" style="color:#212529;font-weight:600;white-space:nowrap">{{ p.node }}</span>
+                  <span class="muted txt-xs" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.detail }}</span>
+                  <span class="mono txt-xs" style="white-space:nowrap">{{ p.ms }}</span>
+                  <span class="pill {{ p.tone }}">{{ p.pct }}</span>
+                </div>
+              </sc-for>
+              <div class="muted txt-xs" style="margin-top:10px">Recommendation: index on stock (warehouse_id, qty) removes the Seq Scan — see <a href="#indexes" onClick="{{ goIndexes }}">Index &amp; Auto-Tuning</a>.</div>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Mean exec time <span class="meta">7 d · flip marked</span></div><div class="bd"><div id="pi-flips" style="height:280px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Plan cache <span class="meta">pg_stat_statements × plan ids</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>queryid</th><th>statement</th><th class="num">plans</th><th class="num">calls/h</th><th class="num">mean ms</th><th>stability</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ planCacheRows }}" as="pc" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ pc.id }}</td><td><span class="mono txt-xs" style="display:inline-block;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ pc.q }}</span></td><td class="num mono txt-xs">{{ pc.plans }}</td><td class="num mono txt-xs">{{ pc.calls }}</td><td class="num mono txt-xs">{{ pc.mean }}</td><td><span class="pill {{ pc.tone }}"><span class="dot"></span>{{ pc.risk }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showIndexes }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Index and Auto-Tuning" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Open recommendations</div><div class="value">4</div><div class="sub">2 validated on fork</div></div>
+          <div class="kpi green"><div class="label">Est. load reduction</div><div class="value">−38%</div><div class="sub">if all applied</div></div>
+          <div class="kpi orange"><div class="label">Unused indexes</div><div class="value">7</div><div class="sub">3.2 GiB reclaimable</div></div>
+          <div class="kpi navy"><div class="label">Hypothetical tests</div><div class="value">12</div><div class="sub">hypopg · this week</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Advisor recommendations <span class="meta">validated on branch fork before proposal · apply requires DBA approval</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Action</th><th>Target</th><th class="num">Est. gain</th><th class="num">Size cost</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ idxRecRows }}" as="ir" hint-placeholder-count="4">
+                  <tr><td><span class="mono txt-xs" style="display:inline-block;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ ir.stmt }}</span></td><td class="mono txt-xs">{{ ir.target }}</td><td class="num mono txt-xs">{{ ir.gain }}</td><td class="num mono txt-xs">{{ ir.size }}</td><td><span class="pill {{ ir.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ ir.status }}</span></td><td class="num"><button class="btn sm">Review</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Index vs sequential scans <span class="meta">per table · scans/min</span></div><div class="bd"><div id="pi-scans" style="height:250px"></div></div></div>
+          <div class="card">
+            <div class="hd">Unused indexes <span class="meta">idx_scan = 0 over 90 d</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Index</th><th class="num">Size</th><th class="num">Scans (90 d)</th><th>Last used</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ unusedIdxRows }}" as="u" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ u.idx }}</td><td class="num mono txt-xs">{{ u.size }}</td><td class="num mono txt-xs">{{ u.scans }}</td><td class="txt-xs muted">{{ u.last }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showActivity }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Application Activity" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Applications</div><div class="value">6</div><div class="sub">distinct application_name</div></div>
+          <div class="kpi teal"><div class="label">Busiest app</div><div class="value">charge-api</div><div class="sub">3.4 AAS · 612 tps</div></div>
+          <div class="kpi orange"><div class="label">Slowest p95</div><div class="value">212 ms</div><div class="sub">batch-etl</div></div>
+          <div class="kpi green"><div class="label">Pool pressure</div><div class="value">0</div><div class="sub">no cl_waiting</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">DB load by application <span class="meta">AAS · 6 h · stacked</span></div><div class="bd"><div id="pi-appload" style="height:260px"></div></div></div>
+          <div class="card"><div class="hd">Sessions by application</div><div class="bd"><div id="pi-appsess" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Per-application detail <span class="meta">pg_stat_activity + pg_stat_statements</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Application</th><th class="num">Sessions</th><th class="num">Active</th><th class="num">TPS</th><th class="num">p95 latency</th><th>Dominant wait</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ appRows }}" as="a" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ a.app }}</td><td class="num mono txt-xs">{{ a.sess }}</td><td class="num mono txt-xs">{{ a.active }}</td><td class="num mono txt-xs">{{ a.tps }}</td><td class="num mono txt-xs">{{ a.p95 }}</td><td class="txt-xs muted">{{ a.wait }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSlow }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Slow Queries" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>Threshold</label><select><option>250 ms</option><option selected="selected">500 ms</option><option>1 s</option><option>5 s</option></select></div>
+            <div class="field" style="margin:0;min-width:160px"><label>Database</label><select><option selected="selected">all</option><option>orders_db</option><option>payments_db</option><option>inventory_db</option></select></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Range</label><select><option selected="selected">6h</option><option>24h</option><option>7d</option></select></div>
+            <button class="btn sm primary">Filter</button>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>log_min_duration_statement = 500ms</span>
+          </div>
+        </div>
+        <div class="card"><div class="hd">Duration distribution <span class="meta">slow statements · 6 h</span></div><div class="bd"><div id="pi-slowhist" style="height:220px"></div></div></div>
+        <div class="card">
+          <div class="hd">Slow query log <span class="meta">124 entries · newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Time</th><th class="num">Duration</th><th>Database</th><th>User</th><th>Statement</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ slowRows }}" as="s" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ s.t }}</td><td class="num"><span class="pill {{ s.tone }}" style="white-space:nowrap">{{ s.dur }}</span></td><td class="mono txt-xs">{{ s.db }}</td><td class="mono txt-xs">{{ s.usr }}</td><td><span class="mono txt-xs" style="display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ s.q }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Performance History" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:220px"><label>Baseline snapshot</label><select><option>#4021 · 2026-07-18 14:00</option></select></div>
+            <div class="field" style="margin:0;min-width:220px"><label>Compare snapshot</label><select><option>#4045 · 2026-07-19 14:00</option></select></div>
+            <button class="btn sm primary">Compare</button>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>pg_profile · hourly snapshots</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Snapshot delta <span class="meta">key rates · % change</span></div><div class="bd"><div id="pi-delta" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Time model <span class="meta">DB time split</span></div><div class="bd"><div id="pi-timemodel" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Top regressed statements <span class="meta">baseline → compare</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>queryid</th><th>statement</th><th class="num">mean ms (base)</th><th class="num">mean ms (now)</th><th class="num">Δ</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ regRows }}" as="r" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ r.id }}</td><td><span class="mono txt-xs" style="display:inline-block;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ r.q }}</span></td><td class="num mono txt-xs">{{ r.base }}</td><td class="num mono txt-xs">{{ r.now }}</td><td class="num"><span class="pill {{ r.tone }}">{{ r.delta }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /api/v1 payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "explorer", group: "perf", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "pi") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      explorer: ["Metrics Explorer", "Plot any collected metric from the console store"],
+      dbload: ["DB Load Timeline", "Average active sessions by wait class — ASH style"],
+      waits: ["Wait Events", "Sampled wait classes and events across active sessions"],
+      vacuum: ["Vacuum & Bloat", "Dead tuples, autovacuum activity and reclaimable space"],
+      profile: ["Performance History", "pg_profile snapshot comparison and regressions"],
+      plans: ["Plan Explorer", "Execution plans and plan-cache stability across statements"],
+      indexes: ["Index & Auto-Tuning", "Advisor recommendations, scan balance and unused indexes"],
+      activity: ["Application Activity", "Load and sessions broken down by application_name"],
+      slow: ["Slow Queries", "Statements over the log_min_duration threshold"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "pi" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showExplorer: tab === "explorer", showDbload: tab === "dbload", showWaits: tab === "waits",
+      showVacuum: tab === "vacuum", showProfile: tab === "profile",
+      showPlans: tab === "plans", showIndexes: tab === "indexes", showActivity: tab === "activity", showSlow: tab === "slow",
+      goIndexes: function (e) { if (e && e.preventDefault) e.preventDefault(); self.openRoute({ key: "auto_tuning", label: "Index & Auto-Tuning" }); },
+      waitRows: [
+        { event: "DataFileRead", cls: "IO", tone: "info", n: "482", pct: "31%", cause: "cold cache / seq scans on large heaps" },
+        { event: "CPU", cls: "CPU", tone: "ok", n: "371", pct: "24%", cause: "computation, plan execution" },
+        { event: "WALWrite", cls: "LWLock", tone: "warn", n: "204", pct: "13%", cause: "commit bursts, wal_buffers pressure" },
+        { event: "transactionid", cls: "Lock", tone: "danger", n: "148", pct: "10%", cause: "row-level contention on hot rows" },
+        { event: "DataFileExtend", cls: "IO", tone: "info", n: "96", pct: "6%", cause: "bulk inserts extending relations" },
+        { event: "ClientRead", cls: "Client", tone: "muted", n: "88", pct: "6%", cause: "app slow to consume results" }
+      ],
+      vacRows: [
+        { rel: "orders_db.public.line_items", dead: "412,338", pct: "38.0%", last: "17:37 (running)", count: "48", status: "RUNNING", tone: "warn" },
+        { rel: "orders_db.public.orders", dead: "188,402", pct: "8.2%", last: "16:02", count: "31", status: "OK", tone: "ok" },
+        { rel: "payments_db.public.payments", dead: "121,930", pct: "7.0%", last: "15:44", count: "26", status: "OK", tone: "ok" },
+        { rel: "inventory_db.public.inventory_moves", dead: "96,511", pct: "3.2%", last: "14:20", count: "19", status: "OK", tone: "ok" },
+        { rel: "audit_db.audit.event_log", dead: "44,208", pct: "0.5%", last: "2026-07-18", count: "4", status: "SKIPPED", tone: "muted" }
+      ],
+      regRows: [
+        { id: "4821090337", q: "SELECT * FROM stock WHERE warehouse_id = $1 AND qty < reorder_level", base: "0.84", now: "1.37", delta: "+63%", tone: "danger" },
+        { id: "8237441905", q: "SELECT o.*, li.* FROM orders o JOIN line_items li ON li.order_id = o.id", base: "0.14", now: "0.15", delta: "+7%", tone: "warn" },
+        { id: "3358810226", q: "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1", base: "34.0", now: "31.1", delta: "-9%", tone: "ok" },
+        { id: "1093822741", q: "UPDATE orders SET status = $1 WHERE id = $2", base: "0.026", now: "0.025", delta: "-4%", tone: "ok" }
+      ],
+      planRows: [
+        { pad: "0px", node: "Nested Loop", detail: "stock ⋈ warehouses · rows=182", ms: "1.37 ms", pct: "100%", tone: "muted" },
+        { pad: "18px", node: "Seq Scan on stock", detail: "filter: warehouse_id = $1 AND qty < reorder_level · 148,210 rows removed", ms: "1.26 ms", pct: "92%", tone: "danger" },
+        { pad: "18px", node: "Index Scan warehouses_pkey", detail: "cond: id = stock.warehouse_id · rows=1", ms: "0.02 ms", pct: "2%", tone: "ok" },
+        { pad: "0px", node: "Planning", detail: "generic plan since Jul 17 · was custom", ms: "0.09 ms", pct: "6%", tone: "warn" }
+      ],
+      planCacheRows: [
+        { id: "4821090337", q: "SELECT * FROM stock WHERE warehouse_id = $1 AND qty < reorder_level", plans: "2", calls: "1,204", mean: "1.37", risk: "FLIPPED", tone: "danger" },
+        { id: "6650912834", q: "SELECT * FROM payments WHERE status = $1 ORDER BY created_at DESC LIMIT 50", plans: "3", calls: "2,033", mean: "0.48", risk: "WATCH", tone: "warn" },
+        { id: "8237441905", q: "SELECT o.*, li.* FROM orders o JOIN line_items li ON li.order_id = o.id", plans: "1", calls: "18,440", mean: "0.15", risk: "STABLE", tone: "ok" },
+        { id: "3358810226", q: "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1", plans: "1", calls: "96", mean: "31.1", risk: "STABLE", tone: "ok" }
+      ],
+      idxRecRows: [
+        { stmt: "CREATE INDEX CONCURRENTLY ON stock (warehouse_id, qty)", target: "orders_db.public.stock", gain: "−92%", size: "+112 MiB", status: "VALIDATED", tone: "ok" },
+        { stmt: "CREATE INDEX CONCURRENTLY ON line_items (order_id) INCLUDE (qty, price)", target: "orders_db.public.line_items", gain: "−34%", size: "+840 MiB", status: "VALIDATED", tone: "ok" },
+        { stmt: "DROP INDEX CONCURRENTLY idx_payments_legacy_ref", target: "payments_db.public.payments", gain: "+2.1 GiB", size: "−2.1 GiB", status: "AWAITING DBA", tone: "warn" },
+        { stmt: "CREATE INDEX CONCURRENTLY ON event_log (actor_id, created_at)", target: "audit_db.audit.event_log", gain: "−18%", size: "+96 MiB", status: "PROPOSED", tone: "info" }
+      ],
+      unusedIdxRows: [
+        { idx: "idx_payments_legacy_ref", size: "2.1 GiB", scans: "0", last: "never" },
+        { idx: "idx_orders_status_old", size: "640 MiB", scans: "12", last: "2026-05-02" },
+        { idx: "idx_audit_actor_btree", size: "410 MiB", scans: "3", last: "2026-06-11" }
+      ],
+      appRows: [
+        { app: "charge-api", sess: "84", active: "9", tps: "612", p95: "3.1 ms", wait: "IO · DataFileRead" },
+        { app: "locker-svc", sess: "48", active: "4", tps: "233", p95: "1.9 ms", wait: "CPU" },
+        { app: "mobile-bff", sess: "33", active: "2", tps: "148", p95: "4.4 ms", wait: "ClientRead" },
+        { app: "doc-service", sess: "18", active: "1", tps: "42", p95: "2.2 ms", wait: "CPU" },
+        { app: "batch-etl", sess: "6", active: "3", tps: "18", p95: "212 ms", wait: "IO · DataFileExtend" },
+        { app: "pgbouncer-admin", sess: "2", active: "0", tps: "1", p95: "0.4 ms", wait: "—" }
+      ],
+      slowRows: [
+        { t: "17:41:22", dur: "42.8 s", db: "orders_db", usr: "batch_etl", q: "COPY line_items_staging FROM STDIN", tone: "danger" },
+        { t: "17:38:05", dur: "8.2 s", db: "orders_db", usr: "charge_api", q: "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1", tone: "danger" },
+        { t: "17:30:44", dur: "3.1 s", db: "payments_db", usr: "reporting_ro", q: "SELECT * FROM payments WHERE created_at > now() - interval '30 days'", tone: "warn" },
+        { t: "17:22:10", dur: "1.4 s", db: "orders_db", usr: "charge_api", q: "SELECT * FROM stock WHERE warehouse_id = $1 AND qty < reorder_level", tone: "warn" },
+        { t: "17:12:59", dur: "0.9 s", db: "inventory_db", usr: "locker_svc", q: "UPDATE inventory_moves SET state = $1 WHERE batch_id = $2", tone: "muted" },
+        { t: "16:58:31", dur: "0.7 s", db: "audit_db", usr: "audit_writer", q: "INSERT INTO audit.event_log SELECT * FROM staging_events", tone: "muted" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { explorer: 1, dbload: 1, waits: 1, vacuum: 1, profile: 1, plans: 1, indexes: 1, activity: 1, slow: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() {
+    window.removeEventListener("resize", this._resize);
+    clearInterval(this._clock);
+    this.disposeAll();
+  }
+  disposeAll() {
+    Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {};
+    Object.values(this._ros || {}).forEach(function (r) { r.disconnect(); }); this._ros = {};
+  }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el);
+    c.setOption(option);
+    this.charts[id] = c;
+    var self = this;
+    this._ros = this._ros || {};
+    if (this._ros[id]) this._ros[id].disconnect();
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (self.charts[id]) self.charts[id].resize(); });
+      ro.observe(el);
+      this._ros[id] = ro;
+    }
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      grid: { left: opts.left || 130, right: 56, top: 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { explorer: "pi-explorer", dbload: "pi-dbload", waits: "pi-waitclass", vacuum: "pi-dead", profile: "pi-delta", plans: "pi-flips", indexes: "pi-scans", activity: "pi-appload", slow: "pi-slowhist" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "explorer") {
+      var pts = this.times(96, 15);
+      var vals = pts.map(function (_, i) { return Math.round(190 + 60 * Math.sin(i / 10) + Math.random() * 24); });
+      var upper = vals.map(function (v) { return v + 40; }), lower = vals.map(function (v) { return Math.max(0, v - 40); });
+      this.mk("pi-explorer", Object.assign(this.base(), {
+        xAxis: { type: "category", data: pts, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 15 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "band-low", type: "line", data: lower, stack: "band", lineStyle: { opacity: 0 }, symbol: "none", silent: true },
+          { name: "expected range", type: "line", data: upper.map(function (u, i) { return u - lower[i]; }), stack: "band", lineStyle: { opacity: 0 }, symbol: "none", areaStyle: { color: "rgba(124,58,237,.07)" }, silent: true },
+          { name: "connections_active", type: "line", smooth: true, showSymbol: false, data: vals, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" } }
+        ]
+      }));
+      var hrs = this.times(24, 60);
+      this.mk("pi-tps", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: hrs, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 5 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "commit", type: "line", smooth: true, showSymbol: false, data: hrs.map(function (_, i) { return Math.round(780 + 240 * Math.sin(i / 3.4) + Math.random() * 90); }), lineStyle: { width: 2, color: "#107c10" }, itemStyle: { color: "#107c10" }, areaStyle: { opacity: 0.08, color: "#107c10" } },
+          { name: "rollback", type: "line", smooth: true, showSymbol: false, data: hrs.map(function () { return Math.round(4 + Math.random() * 8); }), lineStyle: { width: 1.5, color: "#dc3545" }, itemStyle: { color: "#dc3545" } }
+        ]
+      }));
+      this.mk("pi-cache", Object.assign(this.base(), {
+        xAxis: { type: "category", data: hrs, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 5 } },
+        yAxis: { type: "value", min: 95, max: 100, splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: "{value}%" } },
+        series: [{ name: "hit %", type: "line", smooth: true, showSymbol: false, data: hrs.map(function () { return +(98.6 + Math.random() * 0.9).toFixed(2); }), lineStyle: { width: 2.5, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" }, areaStyle: { opacity: 0.1, color: "#17a2b8" } }]
+      }));
+    } else if (tab === "dbload") {
+      var p6 = this.times(72, 5);
+      function w(base, amp) { return p6.map(function (_, i) { return +(Math.max(0, base + amp * Math.sin(i / 7) + Math.random() * base * 0.4)).toFixed(2); }); }
+      this.mk("pi-dbload", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: p6, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 11 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, name: "AAS", nameTextStyle: { fontSize: 10, color: "#8a8fa3" } },
+        series: [
+          { name: "CPU", type: "line", stack: "aas", smooth: true, showSymbol: false, areaStyle: { color: "#107c10", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#107c10" }, data: w(2.2, 0.8) },
+          { name: "IO", type: "line", stack: "aas", smooth: true, showSymbol: false, areaStyle: { color: "#17a2b8", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" }, data: w(2.6, 1.4) },
+          { name: "Lock", type: "line", stack: "aas", smooth: true, showSymbol: false, areaStyle: { color: "#dc3545", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#dc3545" }, data: w(0.7, 0.5) },
+          { name: "LWLock", type: "line", stack: "aas", smooth: true, showSymbol: false, areaStyle: { color: "#f59e0b", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" }, data: w(0.8, 0.4) },
+          { name: "Other", type: "line", stack: "aas", smooth: true, showSymbol: false, areaStyle: { color: "#a78bfa", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#a78bfa" }, data: w(0.4, 0.2),
+            markLine: { symbol: "none", lineStyle: { color: "#212529", type: "dashed", width: 1.5 }, label: { formatter: "8 vCPU", fontSize: 10 }, data: [{ yAxis: 8 }] } }
+        ]
+      }));
+      this.hbar("pi-loaddb", ["orders_db", "payments_db", "inventory_db", "audit_db", "metadata_db"],
+        [{ value: 3.8, itemStyle: { color: "#7c3aed" } }, { value: 1.6, itemStyle: { color: "#17a2b8" } }, { value: 0.9, itemStyle: { color: "#f59e0b" } }, { value: 0.4, itemStyle: { color: "#107c10" } }, { value: 0.1, itemStyle: { color: "#a78bfa" } }],
+        { left: 100, fmt: function (v) { return v + " AAS"; }, labelFmt: "{c}" });
+    } else if (tab === "waits") {
+      this.donut("pi-waitclass", [
+        { name: "IO", value: 578, itemStyle: { color: "#17a2b8" } },
+        { name: "CPU", value: 371, itemStyle: { color: "#107c10" } },
+        { name: "LWLock", value: 204, itemStyle: { color: "#f59e0b" } },
+        { name: "Lock", value: 148, itemStyle: { color: "#dc3545" } },
+        { name: "Client", value: 88, itemStyle: { color: "#a78bfa" } }
+      ], "1,389", "samples");
+      this.hbar("pi-waitevents", ["DataFileRead", "CPU", "WALWrite", "transactionid", "DataFileExtend", "ClientRead"],
+        [482, 371, 204, 148, 96, 88], { left: 120, fmt: function (v) { return v + " samples"; }, labelFmt: "{c}" });
+    } else if (tab === "vacuum") {
+      this.hbar("pi-dead", ["line_items", "orders", "payments", "inventory_moves", "event_log"],
+        [{ value: 38.0, itemStyle: { color: "#dc3545" } }, { value: 8.2, itemStyle: { color: "#f59e0b" } }, { value: 7.0, itemStyle: { color: "#f59e0b" } }, { value: 3.2, itemStyle: { color: "#107c10" } }, { value: 0.5, itemStyle: { color: "#107c10" } }],
+        { left: 120, fmt: function (v) { return v + "% dead"; }, labelFmt: "{c}%" });
+      this.hbar("pi-bloat", ["line_items", "orders", "payments", "idx_payments_legacy_ref", "inventory_moves"],
+        [{ value: 6.2, itemStyle: { color: "#dc3545" } }, { value: 1.4, itemStyle: { color: "#f59e0b" } }, { value: 0.9, itemStyle: { color: "#f59e0b" } }, { value: 2.1, itemStyle: { color: "#a78bfa" } }, { value: 0.4, itemStyle: { color: "#107c10" } }],
+        { left: 160, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c} GiB" });
+    } else if (tab === "plans") {
+      var days = ["Jul 13", "Jul 14", "Jul 15", "Jul 16", "Jul 17", "Jul 18", "Jul 19", "Jul 20"];
+      this.mk("pi-flips", Object.assign(this.base(), {
+        xAxis: { type: "category", data: days, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: "{value} ms" } },
+        series: [{ name: "mean exec ms", type: "line", step: "end", showSymbol: false, data: [0.82, 0.84, 0.83, 0.85, 1.31, 1.34, 1.36, 1.37], lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.06, color: "#7c3aed" },
+          markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "plan flip", fontSize: 10, color: "#dc3545" }, data: [{ xAxis: "Jul 17" }] } }]
+      }));
+    } else if (tab === "indexes") {
+      this.mk("pi-scans", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 110, right: 40, top: 30, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: function (v) { return v + "/min"; } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["stock", "line_items", "orders", "payments", "inventory_moves"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [
+          { name: "index scans", type: "bar", data: [3, 122, 96, 84, 41], barWidth: 9, itemStyle: { color: "#107c10", borderRadius: [0, 5, 5, 0] } },
+          { name: "seq scans", type: "bar", data: [58, 22, 4, 6, 9], barWidth: 9, itemStyle: { color: "#dc3545", borderRadius: [0, 5, 5, 0] } }
+        ]
+      }));
+    } else if (tab === "activity") {
+      var pa = this.times(72, 5);
+      function aw(base, amp, ph) { return pa.map(function (_, i) { return +(Math.max(0, base + amp * Math.sin(i / 8 + (ph || 0)) + Math.random() * base * 0.35)).toFixed(2); }); }
+      this.mk("pi-appload", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: pa, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 11 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, name: "AAS", nameTextStyle: { fontSize: 10, color: "#8a8fa3" } },
+        series: [
+          { name: "charge-api", type: "line", stack: "app", smooth: true, showSymbol: false, areaStyle: { color: "#7c3aed", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#7c3aed" }, data: aw(3.0, 1.2) },
+          { name: "locker-svc", type: "line", stack: "app", smooth: true, showSymbol: false, areaStyle: { color: "#17a2b8", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" }, data: aw(1.4, 0.6, 1.2) },
+          { name: "mobile-bff", type: "line", stack: "app", smooth: true, showSymbol: false, areaStyle: { color: "#f59e0b", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" }, data: aw(0.9, 0.4, 2.1) },
+          { name: "batch-etl", type: "line", stack: "app", smooth: true, showSymbol: false, areaStyle: { color: "#dc3545", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#dc3545" }, data: aw(0.7, 0.7, 3.0) },
+          { name: "other", type: "line", stack: "app", smooth: true, showSymbol: false, areaStyle: { color: "#a78bfa", opacity: .75 }, lineStyle: { width: 0 }, itemStyle: { color: "#a78bfa" }, data: aw(0.3, 0.15, 0.5) }
+        ]
+      }));
+      this.donut("pi-appsess", [
+        { name: "charge-api", value: 84, itemStyle: { color: "#7c3aed" } },
+        { name: "locker-svc", value: 48, itemStyle: { color: "#17a2b8" } },
+        { name: "mobile-bff", value: 33, itemStyle: { color: "#f59e0b" } },
+        { name: "doc-service", value: 18, itemStyle: { color: "#107c10" } },
+        { name: "batch-etl", value: 6, itemStyle: { color: "#dc3545" } },
+        { name: "other", value: 2, itemStyle: { color: "#a78bfa" } }
+      ], "191", "sessions");
+    } else if (tab === "slow") {
+      this.mk("pi-slowhist", Object.assign(this.base(), {
+        grid: { left: 52, right: 16, top: 20, bottom: 26 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: function (v) { return v + " statements"; } },
+        xAxis: { type: "category", data: ["0.5–1 s", "1–2 s", "2–5 s", "5–10 s", "10–30 s", "> 30 s"], axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ type: "bar", barWidth: 34, data: [
+          { value: 64, itemStyle: { color: "#f59e0b", borderRadius: [5, 5, 0, 0] } },
+          { value: 31, itemStyle: { color: "#f59e0b", borderRadius: [5, 5, 0, 0] } },
+          { value: 18, itemStyle: { color: "#f97316", borderRadius: [5, 5, 0, 0] } },
+          { value: 7, itemStyle: { color: "#dc3545", borderRadius: [5, 5, 0, 0] } },
+          { value: 3, itemStyle: { color: "#dc3545", borderRadius: [5, 5, 0, 0] } },
+          { value: 1, itemStyle: { color: "#dc3545", borderRadius: [5, 5, 0, 0] } }
+        ], label: { show: true, position: "top", color: "#5b6b7b", fontSize: 10 } }]
+      }));
+    } else if (tab === "profile") {
+      this.mk("pi-delta", Object.assign(this.base(), {
+        grid: { left: 130, right: 60, top: 10, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: function (v) { return (v > 0 ? "+" : "") + v + "%"; } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: "{value}%" } },
+        yAxis: { type: "category", inverse: true, data: ["tuples fetched", "WAL generated", "temp bytes", "blks read", "commits", "deadlocks"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [{ type: "bar", barWidth: 14, data: [
+          { value: 18, itemStyle: { color: "#f59e0b", borderRadius: [0, 7, 7, 0] } },
+          { value: 12, itemStyle: { color: "#f59e0b", borderRadius: [0, 7, 7, 0] } },
+          { value: 44, itemStyle: { color: "#dc3545", borderRadius: [0, 7, 7, 0] } },
+          { value: 9, itemStyle: { color: "#f59e0b", borderRadius: [0, 7, 7, 0] } },
+          { value: 6, itemStyle: { color: "#107c10", borderRadius: [0, 7, 7, 0] } },
+          { value: 0, itemStyle: { color: "#107c10" } }
+        ], label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: function (p) { return (p.value > 0 ? "+" : "") + p.value + "%"; } } }]
+      }));
+      this.donut("pi-timemodel", [
+        { name: "SQL execute", value: 71, itemStyle: { color: "#7c3aed" } },
+        { name: "Plan", value: 9, itemStyle: { color: "#17a2b8" } },
+        { name: "Vacuum", value: 11, itemStyle: { color: "#107c10" } },
+        { name: "WAL / IO", value: 9, itemStyle: { color: "#f59e0b" } }
+      ], "100%", "DB time");
+    }
+  }
+}
+</script>
+</body>
+</html>

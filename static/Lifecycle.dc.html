@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes lcPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="lc-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Lifecycle</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:lcPulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showProvision }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Provisioning" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Managed clusters</div><div class="value">2</div><div class="sub">prod · dr (gated)</div></div>
+          <div class="kpi teal"><div class="label">In provisioning</div><div class="value">0</div><div class="sub">none active</div></div>
+          <div class="kpi green"><div class="label">Templates</div><div class="value">3</div><div class="sub">HA · single · analytics</div></div>
+          <div class="kpi orange"><div class="label">Avg provision time</div><div class="value">7 m</div><div class="sub">HA 3-node</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:170px"><label>Template</label><select><option>HA (3-node Patroni)</option><option>Single instance</option><option>Analytics (read-heavy)</option></select></div>
+            <div class="field" style="margin:0;min-width:120px"><label>PG version</label><select><option>16.4</option><option>15.8</option></select></div>
+            <div class="field" style="margin:0;width:130px"><label>vCPU / node</label><input type="number" value="16"></div>
+            <div class="field" style="margin:0;width:130px"><label>RAM (GiB)</label><input type="number" value="64"></div>
+            <div class="field" style="margin:0;width:130px"><label>Storage (GiB)</label><input type="number" value="1000"></div>
+            <button class="btn sm primary" disabled="disabled">Provision (SHADOW)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Cluster inventory <span class="meta">PostgresCluster CRs · PGO</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>Template</th><th>Version</th><th>Nodes</th><th class="num">vCPU / RAM</th><th class="num">Storage</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ clusterRows }}" as="c" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ c.name }}</td><td class="txt-xs">{{ c.tmpl }}</td><td class="mono txt-xs">{{ c.ver }}</td><td class="mono txt-xs">{{ c.nodes }}</td><td class="num mono txt-xs">{{ c.size }}</td><td class="num mono txt-xs">{{ c.storage }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Provisioning activity <span class="meta">example · new cluster bootstrap</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ provStepRows }}" as="p" hint-placeholder-count="5">
+              <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ p.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ p.state }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ p.title }}</div><div class="muted txt-xs">{{ p.sub }}</div></div>
+                <div class="mono txt-xs muted" style="white-space:nowrap">{{ p.dur }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showScale }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Scaling" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Current size</div><div class="value">32c / 128Gi</div><div class="sub">prod-pgcluster-uae</div></div>
+          <div class="kpi teal"><div class="label">CPU p95</div><div class="value">68%</div><div class="sub">30 d</div></div>
+          <div class="kpi orange"><div class="label">Mem p95</div><div class="value">71%</div><div class="sub">30 d</div></div>
+          <div class="kpi green"><div class="label">Scaling events</div><div class="value">3</div><div class="sub">last 90 d</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>Cluster</label><select><option>prod-pgcluster-uae</option><option>dr-pgcluster-uae</option></select></div>
+            <div class="field" style="margin:0;width:130px"><label>Target vCPU</label><input type="number" value="32"></div>
+            <div class="field" style="margin:0;width:130px"><label>Target RAM (GiB)</label><input type="number" value="128"></div>
+            <button class="btn sm" disabled="disabled">Plan resize</button>
+            <div style="flex:1"></div>
+            <span class="pill warn"><span class="dot"></span>rolling · replica-first · minimal downtime</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Resource utilization <span class="meta">CPU vs Mem · 24h</span></div><div class="bd"><div id="lc-scale-util" style="height:260px"></div></div></div>
+          <div class="card">
+            <div class="hd">Scaling history <span class="meta">vertical resize events</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>When</th><th>Cluster</th><th>From</th><th>To</th><th>Trigger</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ scaleRows }}" as="s" hint-placeholder-count="4">
+                    <tr><td class="mono txt-xs">{{ s.when }}</td><td class="mono txt-xs">{{ s.cluster }}</td><td class="mono txt-xs">{{ s.from }}</td><td class="mono txt-xs"><strong>{{ s.to }}</strong></td><td class="txt-xs muted">{{ s.trigger }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showReplicas }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Read Replicas" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Read replicas</div><div class="value">3</div><div class="sub">2 local · 1 DR</div></div>
+          <div class="kpi green"><div class="label">RO endpoint</div><div class="value">healthy</div><div class="sub">load-balanced</div></div>
+          <div class="kpi teal"><div class="label">Read traffic</div><div class="value">62%</div><div class="sub">of total QPS</div></div>
+          <div class="kpi orange"><div class="label">Max replica lag</div><div class="value">184 KB</div><div class="sub">prod-pgcluster-uae-02</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Read distribution <span class="meta">QPS by replica · 24h</span></div><div class="bd"><div id="lc-repl-qps" style="height:260px"></div></div></div>
+          <div class="card">
+            <div class="hd">Read replicas <span class="meta">RO service endpoints</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Replica</th><th>Zone</th><th class="num">QPS</th><th class="num">Lag</th><th>Routing</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ replicaRows }}" as="r" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ r.name }}</td><td class="txt-xs">{{ r.zone }}</td><td class="num mono txt-xs">{{ r.qps }}</td><td class="num mono txt-xs">{{ r.lag }}</td><td><span class="pill {{ r.routeTone }}" style="white-space:nowrap">{{ r.route }}</span></td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>Add replica in zone</label><select><option>me-central-a</option><option>me-central-b</option><option>me-central-c</option></select></div>
+            <div class="field" style="margin:0;min-width:140px"><label>Instance size</label><select><option>16c / 64Gi</option><option>8c / 32Gi</option></select></div>
+            <button class="btn sm primary" disabled="disabled">Add read replica (SHADOW)</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showUpgrade }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Upgrades" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Current version</div><div class="value">16.4</div><div class="sub">all clusters</div></div>
+          <div class="kpi orange"><div class="label">Available</div><div class="value">16.5</div><div class="sub">minor · security</div></div>
+          <div class="kpi teal"><div class="label">Extensions checked</div><div class="value">14 / 14</div><div class="sub">compatible</div></div>
+          <div class="kpi green"><div class="label">Last upgrade</div><div class="value">54 d</div><div class="sub">16.3 → 16.4</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Available upgrades <span class="meta">minor = rolling restart · major = blue/green</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>Current</th><th>Target</th><th>Type</th><th>Method</th><th class="num">Est. downtime</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ upgradeRows }}" as="u" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ u.cluster }}</td><td class="mono txt-xs">{{ u.cur }}</td><td class="mono txt-xs"><strong>{{ u.target }}</strong></td><td class="txt-xs">{{ u.type }}</td><td class="txt-xs">{{ u.method }}</td><td class="num mono txt-xs">{{ u.downtime }}</td><td><span class="pill {{ u.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ u.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Pre-upgrade compatibility checks <span class="meta">prod-pgcluster-uae → 16.5</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ upgradeCheckRows }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.state }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ c.title }}</div><div class="muted txt-xs">{{ c.sub }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showBluegreen }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Blue/Green Upgrade" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Blue (current)</div><div class="value">16.4</div><div class="sub">prod-pgcluster-uae · live</div></div>
+          <div class="kpi teal"><div class="label">Green (target)</div><div class="value">17.0</div><div class="sub">prod-pgcluster-uae-green</div></div>
+          <div class="kpi green"><div class="label">Sync lag</div><div class="value">420 ms</div><div class="sub">logical replication</div></div>
+          <div class="kpi orange"><div class="label">Cutover readiness</div><div class="value">83%</div><div class="sub">2 checks pending</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Blue/green stages <span class="meta">major version upgrade · logical replication cutover</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ bgRows }}" as="b" hint-placeholder-count="6">
+              <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ b.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ b.state }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ b.title }}</div><div class="muted txt-xs">{{ b.sub }}</div></div>
+                <div class="mono txt-xs muted" style="white-space:nowrap">{{ b.meta }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Blue vs green health <span class="meta">key metrics comparison</span></div><div class="bd"><div id="lc-bg-cmp" style="height:250px"></div></div></div>
+          <div class="card">
+            <div class="hd">Cutover checklist <span class="meta">gate before traffic switch</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ bgCheckRows }}" as="c" hint-placeholder-count="4">
+                <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.state }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ c.title }}</div><div class="muted txt-xs">{{ c.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAutoscale }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Storage Autoscale" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Provisioned</div><div class="value">4.0 TiB</div><div class="sub">prod-pgcluster-uae PVC</div></div>
+          <div class="kpi teal"><div class="label">Used</div><div class="value">2.4 TiB</div><div class="sub">60%</div></div>
+          <div class="kpi orange"><div class="label">Autoscale trigger</div><div class="value">85%</div><div class="sub">+25% grow step</div></div>
+          <div class="kpi green"><div class="label">Autoscale events</div><div class="value">2</div><div class="sub">last 90 d</div></div>
+        </div>
+        <div class="card"><div class="hd">Storage growth &amp; autoscale <span class="meta">used vs provisioned · projection to trigger</span></div><div class="bd"><div id="lc-auto-storage" style="height:290px"></div></div></div>
+        <div class="card">
+          <div class="hd">Autoscale policy &amp; history <span class="meta">PVC expansion events</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>When</th><th>Cluster</th><th>Trigger</th><th>From</th><th>To</th><th class="num">Duration</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ autoscaleRows }}" as="a" hint-placeholder-count="3">
+                  <tr><td class="mono txt-xs">{{ a.when }}</td><td class="mono txt-xs">{{ a.cluster }}</td><td class="txt-xs muted">{{ a.trigger }}</td><td class="mono txt-xs">{{ a.from }}</td><td class="mono txt-xs"><strong>{{ a.to }}</strong></td><td class="num mono txt-xs">{{ a.dur }}</td><td><span class="pill {{ a.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDecommission }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Decommission" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Scheduled</div><div class="value">1</div><div class="sub">pg-legacy-2</div></div>
+          <div class="kpi orange"><div class="label">Retention hold</div><div class="value">30 d</div><div class="sub">final snapshot</div></div>
+          <div class="kpi green"><div class="label">Dependencies clear</div><div class="value">4 / 5</div><div class="sub">1 FDW pending</div></div>
+          <div class="kpi teal"><div class="label">Reclaimable</div><div class="value">1.2 TiB</div><div class="sub">+ 16c / 64Gi</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Decommission safeguards <span class="meta">pg-legacy-2 · guarded teardown</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ decomStepRows }}" as="d" hint-placeholder-count="6">
+              <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ d.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ d.state }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ d.title }}</div><div class="muted txt-xs">{{ d.sub }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="pill danger"><span class="dot"></span>destructive</span>
+            <span class="muted txt-xs">Final snapshot taken and held 30 days · connections drained · dependent FDW server srv_legacy_ora must be removed first.</span>
+            <div style="flex:1"></div>
+            <button class="btn sm" disabled="disabled">Confirm decommission (SHADOW)</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live PGO PostgresCluster CRs, resize/upgrade jobs, PVC autoscale and /api/v1/lifecycle payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: &quot;100%&quot;, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { tab: "provision", group: "lifecycle", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "lc") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      provision: ["Provisioning", "Provision new PostgresCluster resources from HA, single and analytics templates"],
+      scale: ["Scaling", "Vertical resize planning from 30 d utilization with rolling replica-first apply"],
+      replicas: ["Read Replicas", "Read-only endpoint fleet, read distribution and replica lag"],
+      upgrade: ["Upgrades", "Minor rolling and major blue/green upgrades with compatibility checks"],
+      bluegreen: ["Blue/Green Upgrade", "Major version cutover via logical replication with health gating"],
+      autoscale: ["Storage Autoscale", "PVC growth projection, autoscale triggers and expansion history"],
+      decommission: ["Decommission", "Guarded cluster teardown with snapshot retention and dependency checks"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "lc" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showProvision: tab === "provision", showScale: tab === "scale", showReplicas: tab === "replicas", showUpgrade: tab === "upgrade",
+      showBluegreen: tab === "bluegreen", showAutoscale: tab === "autoscale", showDecommission: tab === "decommission",
+      clusterRows: [
+        { name: "prod-pgcluster-uae", tmpl: "HA (3-node)", ver: "16.4", nodes: "3", size: "32c / 128Gi", storage: "4.0 TiB", tone: "ok", status: "running" },
+        { name: "dr-pgcluster-uae", tmpl: "HA (2-node)", ver: "16.4", nodes: "2", size: "16c / 64Gi", storage: "4.0 TiB", tone: "info", status: "standby (gated)" }
+      ],
+      provStepRows: [
+        { state: "done", tone: "ok", title: "PostgresCluster CR applied", sub: "PGO reconcile started", dur: "2 s" },
+        { state: "done", tone: "ok", title: "PVCs bound", sub: "storage class gp3 · 200 GiB", dur: "18 s" },
+        { state: "done", tone: "ok", title: "Primary pod scheduled + initdb", sub: "prod-pgcluster-uae-00 · TL 1", dur: "1 m 40 s" },
+        { state: "running", tone: "info", title: "Bootstrap Patroni + DCS registration", sub: "etcd member registered", dur: "running" },
+        { state: "pending", tone: "muted", title: "TLS certs + pgBouncer", sub: "cert-manager issuance queued", dur: "queued" }
+      ],
+      scaleRows: [
+        { when: "Jun 12", cluster: "prod-pgcluster-uae", from: "24c / 96Gi", to: "32c / 128Gi", trigger: "CPU p95 > 80%", tone: "ok", status: "succeeded" },
+        { when: "Apr 18", cluster: "prod-pgcluster-uae", from: "16c / 64Gi", to: "24c / 96Gi", trigger: "mem pressure", tone: "ok", status: "succeeded" }
+      ],
+      replicaRows: [
+        { name: "prod-pgcluster-uae-01", zone: "me-central-a", qps: "4,210", lag: "0", route: "read", routeTone: "ok", tone: "ok", status: "in service" },
+        { name: "prod-pgcluster-uae-02", zone: "me-central-b", qps: "3,880", lag: "184 KB", route: "read", routeTone: "ok", tone: "ok", status: "in service" }
+      ],
+      upgradeRows: [
+        { cluster: "prod-pgcluster-uae", cur: "16.4", target: "16.5", type: "minor", method: "rolling restart", downtime: "~8 s", tone: "warn", status: "available" },
+        { cluster: "dr-pgcluster-uae", cur: "16.4", target: "16.5", type: "minor", method: "rolling restart", downtime: "~6 s", tone: "muted", status: "follows prod" }
+      ],
+      upgradeCheckRows: [
+        { state: "ok", tone: "ok", title: "Extension compatibility (14 extensions)", sub: "pgaudit, pg_stat_statements, postgis all support 16.5" },
+        { state: "ok", tone: "ok", title: "No deprecated GUCs in use", sub: "config diff clean against 16.5 defaults" },
+        { state: "ok", tone: "ok", title: "Replication slots healthy", sub: "no retained-WAL blockers for restart" },
+        { state: "ok", tone: "ok", title: "Backup within RPO", sub: "last archive 40 s ago" },
+        { state: "ok", tone: "ok", title: "Change window approved", sub: "Sat 02:00–04:00 UTC · CHG-2291" }
+      ],
+      bgRows: [
+        { state: "done", tone: "ok", title: "Provision green cluster (17.0)", sub: "prod-pgcluster-uae-green · 3-node HA", meta: "100%" },
+        { state: "done", tone: "ok", title: "Schema + role copy", sub: "412 objects · roles synced", meta: "100%" },
+        { state: "done", tone: "ok", title: "Initial data load", sub: "logical replication seeded", meta: "100%" },
+        { state: "running", tone: "info", title: "Catch-up streaming (CDC)", sub: "apply lag 420 ms · target < 1 s", meta: "live" },
+        { state: "pending", tone: "muted", title: "Shadow read validation", sub: "mirror read traffic to green", meta: "queued" },
+        { state: "pending", tone: "warn", title: "Traffic cutover (redirect PgBouncer)", sub: "requires DBA approval · SHADOW", meta: "guarded" }
+      ],
+      bgCheckRows: [
+        { state: "ok", tone: "ok", title: "Row counts reconciled", sub: "all tables within tolerance" },
+        { state: "ok", tone: "ok", title: "Sequences advanced", sub: "green sequences ahead of blue" },
+        { state: "pending", tone: "warn", title: "Apply lag under 1 s sustained", sub: "currently 420 ms · needs 5 min steady" },
+        { state: "pending", tone: "warn", title: "Rollback plan confirmed", sub: "blue retained 48 h post-cutover" }
+      ],
+      autoscaleRows: [
+        { when: "Jun 28", cluster: "prod-pgcluster-uae", trigger: "used > 85%", from: "3.2 TiB", to: "4.0 TiB", dur: "42 s", tone: "ok", status: "expanded" },
+        { when: "—", cluster: "prod-pgcluster-uae", trigger: "projected ~142 d", from: "4.0 TiB", to: "5.0 TiB", dur: "—", tone: "muted", status: "forecast" }
+      ],
+      decomStepRows: [
+        { state: "done", tone: "ok", title: "Connections drained", sub: "PgBouncer pool paused · 0 active sessions" },
+        { state: "done", tone: "ok", title: "Final snapshot taken", sub: "pgBackRest full · held 30 d · restore-verified" },
+        { state: "done", tone: "ok", title: "Removed from monitoring + alerting", sub: "collector unregistered" },
+        { state: "done", tone: "ok", title: "DNS / service endpoints removed", sub: "no external references" },
+        { state: "warn", tone: "warn", title: "Dependency: FDW server srv_legacy_ora", sub: "still referenced by a reporting consumer · remove first" },
+        { state: "pending", tone: "muted", title: "Delete PostgresCluster CR", sub: "final destructive step · guarded" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { provision: 1, scale: 1, replicas: 1, upgrade: 1, bluegreen: 1, autoscale: 1, decommission: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  days(n) {
+    var out = [], m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * 864e5); out.push(m[d.getMonth()] + " " + d.getDate()); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { provision: null, scale: "lc-scale-util", replicas: "lc-repl-qps", upgrade: null, bluegreen: "lc-bg-cmp", autoscale: "lc-auto-storage", decommission: null }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "scale") {
+      var t = this.times(24, 60);
+      this.mk("lc-scale-util", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: t, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", max: 100, name: "%", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "CPU", type: "line", smooth: true, showSymbol: false, data: t.map(function (_, i) { return Math.round(52 + 16 * Math.abs(Math.sin(i / 4)) + Math.random() * 6); }), lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.08, color: "#7c3aed" } },
+          { name: "Memory", type: "line", smooth: true, showSymbol: false, data: t.map(function (_, i) { return Math.round(64 + 8 * Math.abs(Math.cos(i / 5)) + Math.random() * 4); }), lineStyle: { width: 2, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" } }
+        ]
+      }));
+    } else if (tab === "replicas") {
+      var t = this.times(24, 60);
+      var mk = function (base, jitter) { return t.map(function () { return Math.round(base + Math.random() * jitter); }); };
+      this.mk("lc-repl-qps", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: t, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", name: "QPS", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "prod-pgcluster-uae-01", type: "line", stack: "q", areaStyle: { opacity: 0.8 }, showSymbol: false, smooth: true, data: mk(3800, 600), lineStyle: { width: 0 }, itemStyle: { color: "#7c3aed" } },
+          { name: "prod-pgcluster-uae-02", type: "line", stack: "q", areaStyle: { opacity: 0.8 }, showSymbol: false, smooth: true, data: mk(3600, 500), lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" } },
+          { name: "dr-pgcluster-uae-ro", type: "line", stack: "q", areaStyle: { opacity: 0.8 }, showSymbol: false, smooth: true, data: mk(560, 160), lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" } }
+        ]
+      }));
+    } else if (tab === "bluegreen") {
+      this.mk("lc-bg-cmp", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 100, right: 30, top: 30, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["Commit p95 (ms)", "TPS (k)", "Cache hit (%)", "Conns"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [
+          { name: "blue (16.4)", type: "bar", data: [3.2, 4.1, 99, 412], barWidth: 9, itemStyle: { color: "#17a2b8", borderRadius: [0, 5, 5, 0] } },
+          { name: "green (17.0)", type: "bar", data: [2.9, 4.3, 99, 118], barWidth: 9, itemStyle: { color: "#7c3aed", borderRadius: [0, 5, 5, 0] } }
+        ]
+      }));
+    } else if (tab === "autoscale") {
+      var fd = this.days(45), proj = [];
+      for (var i = 0; i < 60; i++) { var d = new Date(Date.now() + i * 864e5); proj.push((d.getMonth() + 1) + "/" + d.getDate()); }
+      var used = fd.map(function (_, i) { return +(1.9 + i * 0.011 + Math.random() * 0.02).toFixed(2); });
+      var last = used[used.length - 1];
+      var forecast = fd.map(function () { return null; }).concat(proj.map(function (_, i) { return +(last + (i + 1) * 0.011).toFixed(2); }));
+      this.mk("lc-auto-storage", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: fd.concat(proj), boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 13 } },
+        yAxis: { type: "value", name: "TiB", max: 5, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "used", type: "line", showSymbol: false, data: used, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" } },
+          { name: "forecast", type: "line", showSymbol: false, data: forecast, lineStyle: { width: 2, color: "#f59e0b", type: "dashed" }, itemStyle: { color: "#f59e0b" },
+            markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "85% trigger", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 3.4 }] } },
+          { name: "provisioned", type: "line", showSymbol: false, data: fd.concat(proj).map(function () { return 4.0; }), lineStyle: { width: 1.5, color: "#8a8fa3", type: "dotted" }, itemStyle: { color: "#8a8fa3" } }
+        ]
+      }));
+    }
+  }
+}
+</script>
+</body>
+</html>

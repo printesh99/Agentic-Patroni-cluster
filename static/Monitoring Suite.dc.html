@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes msPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="ms-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Monitoring Suite</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:msPulse 2s infinite"></span>live · refreshed {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet. Ask me to design it next.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showOcp }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="OpenShift Overview" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Dashboards</div><div class="value">4</div><div class="sub">Grafana folder ocp-dr</div></div>
+          <div class="kpi teal"><div class="label">Panels</div><div class="value">86</div><div class="sub">extracted inventory</div></div>
+          <div class="kpi purple"><div class="label">Queries</div><div class="value">142</div><div class="sub">PromQL / LogQL</div></div>
+          <div class="kpi orange"><div class="label">Loki ML rows</div><div class="value">4,820</div><div class="sub">loki_logs_for_ml.jsonl</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">OpenShift AI / ML <span class="meta">anthropic · semantic RAG</span></div>
+          <div class="bd">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+              <div class="stat card"><div class="lbl">RAG docs</div><div class="val">312</div></div>
+              <div class="stat card"><div class="lbl">KB total</div><div class="val">440</div></div>
+              <div class="stat card"><div class="lbl">Rows on disk</div><div class="val">4,820</div></div>
+              <div class="stat card"><div class="lbl">LLM</div><div class="val">on</div></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+              <button class="btn sm primary">Ingest RAG + ML</button>
+              <button class="btn sm">Train ML</button>
+              <input placeholder="Ask OpenShift logs or Grafana evidence" style="flex:1;min-width:280px;border:1px solid #d8dbe4;border-radius:8px;padding:9px 12px;font-size:12.5px;font-family:var(--mono,monospace)">
+              <button class="btn sm">Ask</button>
+            </div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Datasource map <span class="meta">types</span></div><div class="bd"><div id="ms-datasources" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Query inventory <span class="meta">languages</span></div><div class="bd"><div id="ms-querylang" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Loki infrastructure sample <span class="meta">8 of 4,820 ML rows</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Time</th><th>Namespace</th><th>Pod / node</th><th>Message</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ lokiRows }}" as="l" hint-placeholder-count="8">
+                  <tr><td class="mono txt-xs">{{ l.ts }}</td><td class="mono txt-xs">{{ l.ns }}</td><td class="mono txt-xs">{{ l.pod }}</td><td><span class="mono txt-xs" style="display:inline-block;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ l.msg }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPatroni }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cluster Patroni" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">DCS</div><div class="value">healthy</div><div class="sub">Kubernetes endpoints</div></div>
+          <div class="kpi navy"><div class="label">Timeline</div><div class="value">7</div><div class="sub">last switchover 12d ago</div></div>
+          <div class="kpi teal"><div class="label">Failsafe mode</div><div class="value">off</div><div class="sub">DCS reachable</div></div>
+          <div class="kpi slate"><div class="label">Pending restarts</div><div class="value">0</div><div class="sub">no config drift</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Member state history <span class="meta">24 h · uptime %</span></div><div class="bd"><div id="ms-uptime" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Patroni loop latency <span class="meta">ms · run_cycle</span></div><div class="bd"><div id="ms-loop" style="height:240px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Patroni configuration <span class="meta">DCS · effective</span></div>
+          <div class="bd" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+            <div class="stat card"><div class="lbl">ttl</div><div class="val">30 <span class="unit">s</span></div></div>
+            <div class="stat card"><div class="lbl">loop_wait</div><div class="val">10 <span class="unit">s</span></div></div>
+            <div class="stat card"><div class="lbl">retry_timeout</div><div class="val">10 <span class="unit">s</span></div></div>
+            <div class="stat card"><div class="lbl">maximum_lag_on_failover</div><div class="val">1 <span class="unit">MB</span></div></div>
+            <div class="stat card"><div class="lbl">synchronous_mode</div><div class="val">on</div></div>
+            <div class="stat card"><div class="lbl">synchronous_node_count</div><div class="val">1</div></div>
+            <div class="stat card"><div class="lbl">failsafe_mode</div><div class="val">off</div></div>
+            <div class="stat card"><div class="lbl">use_pg_rewind</div><div class="val">true</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Timeline history <span class="meta">Patroni /history</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th class="num">TL</th><th>Reason</th><th>Timestamp</th><th>New leader</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ tlHistory }}" as="t" hint-placeholder-count="4">
+                  <tr><td class="num mono">{{ t.tl }}</td><td>{{ t.reason }}</td><td class="txt-xs">{{ t.when }}</td><td class="mono txt-xs">{{ t.leader }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showObjects }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Object Metrics" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Databases</div><div class="value">5</div><div class="sub">14 schemas</div></div>
+          <div class="kpi teal"><div class="label">Tables</div><div class="value">312</div><div class="sub">1,148 indexes</div></div>
+          <div class="kpi purple"><div class="label">Total relation</div><div class="value">118.4 GiB</div><div class="sub">table 84.2 + index 34.2</div></div>
+          <div class="kpi orange"><div class="label">Dead tuples</div><div class="value">875 k</div><div class="sub">across snapshot</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Capacity forecast <span class="meta">30-day projection · object metrics</span></div>
+          <div class="bd"><div id="ms-forecast" style="height:240px"></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Storage split</div><div class="bd"><div id="ms-storagesplit" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Largest tables <span class="meta">total size</span></div><div class="bd"><div id="ms-toptables" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Largest tables <span class="meta">pg_inspector snapshot</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Database</th><th>Table</th><th class="num">Total</th><th class="num">Heap</th><th class="num">Index</th><th class="num">Live</th><th class="num">Dead %</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ objTables }}" as="t" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ t.db }}</td><td class="mono txt-xs">{{ t.rel }}</td><td class="num mono txt-xs">{{ t.total }}</td><td class="num mono txt-xs">{{ t.heap }}</td><td class="num mono txt-xs">{{ t.idx }}</td><td class="num mono txt-xs">{{ t.live }}</td><td class="num"><span class="pill {{ t.tone }}">{{ t.deadPct }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLogs }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Logs Explorer" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:200px"><label>Pod</label><select><option>prod-pgcluster-uae-instance1-0</option><option>prod-pgcluster-uae-instance2-0</option><option>dr-pgcluster-uae-instance1-0</option><option>pgbouncer-*</option></select></div>
+            <div class="field" style="margin:0;min-width:140px"><label>Level</label><select><option>ALL</option><option>LOG</option><option>WARNING</option><option>ERROR</option><option>FATAL</option></select></div>
+            <div class="field" style="margin:0;flex:1;min-width:240px"><label>Filter</label><input placeholder="grep pattern, e.g. checkpoint" style="width:100%;box-sizing:border-box"></div>
+            <button class="btn sm primary" style="align-self:flex-end">Search</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Log volume by level <span class="meta">last 6 h</span></div><div class="bd"><div id="ms-logvol" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Top event classes</div><div class="bd"><div id="ms-logclass" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Log stream <span class="meta">prod-pgcluster-uae-instance1-0 · live tail</span></div>
+          <div class="bd" style="padding:0">
+            <div style="background:#1e1b2e;border-radius:0 0 8px 8px;padding:14px 16px;max-height:380px;overflow:auto;font-family:var(--mono,monospace);font-size:11.5px;line-height:1.75">
+              <sc-for list="{{ logLines }}" as="ln" hint-placeholder-count="10">
+                <div style="display:flex;gap:10px;white-space:nowrap"><span style="color:#8a8fa3;flex:0 0 auto">{{ ln.ts }}</span><span style="color:{{ ln.color }};flex:0 0 auto;width:64px">{{ ln.level }}</span><span style="color:#d8dbe4;overflow:hidden;text-overflow:ellipsis">{{ ln.msg }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /api/v1 payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "ocp", group: "monitoring", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "ms") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      ocp: ["OpenShift Overview", "Grafana extractor metadata, Loki ML sample and OpenShift RAG"],
+      patroni: ["Cluster / Patroni", "DCS state, timeline history and Patroni configuration"],
+      objects: ["Object Metrics", "Catalog scope, storage, churn and capacity forecast"],
+      logs: ["Logs Explorer", "Pod logs with level filters and live tail"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "ms" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showOcp: tab === "ocp", showPatroni: tab === "patroni", showObjects: tab === "objects", showLogs: tab === "logs",
+      lokiRows: [
+        { ts: "2026-07-19T17:38:02Z", ns: "openshift-monitoring", pod: "prometheus-k8s-0", msg: "level=info msg=\"WAL segment compacted\" segment=00482 duration=182ms" },
+        { ts: "2026-07-19T17:37:44Z", ns: "uat-pgcluster-uae", pod: "prod-pgcluster-uae-instance1-0", msg: "checkpoint complete: wrote 18211 buffers (11.1%); sync files=214 longest=0.112s" },
+        { ts: "2026-07-19T17:37:20Z", ns: "uat-pgcluster-uae", pod: "pgbouncer-orders-2", msg: "stats: 812 xacts/s, 3104 queries/s, in 4.1 MB/s, out 12.8 MB/s" },
+        { ts: "2026-07-19T17:36:58Z", ns: "openshift-ingress", pod: "router-default-6f8", msg: "HTTP 200 GET /api/v1/health-grid 12ms" },
+        { ts: "2026-07-19T17:36:31Z", ns: "uat-pgcluster-uae", pod: "dr-pgcluster-uae-instance1-0", msg: "restored log file \"000000070000002F0000008E\" from archive" },
+        { ts: "2026-07-19T17:36:12Z", ns: "openshift-storage", pod: "ceph-osd-4", msg: "slow op warning cleared, latency back under 20ms" },
+        { ts: "2026-07-19T17:35:49Z", ns: "uat-pgcluster-uae", pod: "prod-pgcluster-uae-instance1-0", msg: "automatic vacuum of table \"orders_db.public.line_items\": index scans: 1, tuples removed: 412338" },
+        { ts: "2026-07-19T17:35:15Z", ns: "grafana", pod: "grafana-7d4b9", msg: "extractor: 142 panel queries exported to ml/loki_logs_for_ml.jsonl" }
+      ],
+      tlHistory: [
+        { tl: "7", reason: "switchover", when: "2026-07-07 02:10:44", leader: "prod-pgcluster-uae-instance1-0" },
+        { tl: "6", reason: "failover (leader lost)", when: "2026-05-14 21:31:08", leader: "prod-pgcluster-uae-instance2-0" },
+        { tl: "5", reason: "switchover", when: "2026-04-02 01:05:12", leader: "prod-pgcluster-uae-instance1-0" },
+        { tl: "4", reason: "blue/green upgrade", when: "2026-02-18 00:40:57", leader: "prod-pgcluster-uae-instance1-0" }
+      ],
+      objTables: [
+        { db: "orders_db", rel: "public.line_items", total: "24.8 GiB", heap: "17.2 GiB", idx: "7.6 GiB", live: "1,084,220", deadPct: "38.0%", tone: "danger" },
+        { db: "orders_db", rel: "public.orders", total: "18.1 GiB", heap: "12.4 GiB", idx: "5.7 GiB", live: "2,310,556", deadPct: "8.2%", tone: "warn" },
+        { db: "audit_db", rel: "audit.event_log", total: "12.9 GiB", heap: "11.1 GiB", idx: "1.8 GiB", live: "9,410,662", deadPct: "0.5%", tone: "ok" },
+        { db: "payments_db", rel: "public.payments", total: "11.4 GiB", heap: "8.0 GiB", idx: "3.4 GiB", live: "1,732,004", deadPct: "7.0%", tone: "warn" },
+        { db: "inventory_db", rel: "public.inventory_moves", total: "9.8 GiB", heap: "7.4 GiB", idx: "2.4 GiB", live: "3,022,187", deadPct: "3.2%", tone: "ok" },
+        { db: "orders_db", rel: "public.customers", total: "3.1 GiB", heap: "2.2 GiB", idx: "0.9 GiB", live: "512,340", deadPct: "2.4%", tone: "ok" }
+      ],
+      logLines: [
+        { ts: "17:38:02", level: "LOG", color: "#8bc48a", msg: "checkpoint starting: time" },
+        { ts: "17:38:04", level: "LOG", color: "#8bc48a", msg: "checkpoint complete: wrote 18211 buffers (11.1%); 0 WAL file(s) added, 2 removed, 4 recycled" },
+        { ts: "17:37:41", level: "LOG", color: "#8bc48a", msg: "automatic vacuum of table \"orders_db.public.line_items\": index scans: 1, pages: removed 0, remain 302114" },
+        { ts: "17:37:12", level: "WARNING", color: "#f0c36d", msg: "long-running transaction detected: pid 37518 idle in transaction for 84s (orders_app@orders_db)" },
+        { ts: "17:36:58", level: "LOG", color: "#8bc48a", msg: "recovery restart point at 2F/88D01230" },
+        { ts: "17:36:30", level: "ERROR", color: "#e88585", msg: "canceling statement due to lock timeout — pid 40233 waiting on relation public.orders" },
+        { ts: "17:36:05", level: "LOG", color: "#8bc48a", msg: "wal sender: standby dr-pgcluster-uae-instance1-0 caught up, streaming at 2F/8A02F1A8" },
+        { ts: "17:35:44", level: "LOG", color: "#8bc48a", msg: "connection authorized: user=orders_app database=orders_db application_name=orders-api SSL=on" },
+        { ts: "17:35:21", level: "WARNING", color: "#f0c36d", msg: "archive_command took 4.2s for WAL 000000070000002F0000008D (S3 endpoint latency)" },
+        { ts: "17:35:02", level: "LOG", color: "#8bc48a", msg: "pgaudit: AUDIT: SESSION,214,1,READ,SELECT,,,\"SELECT * FROM pg_stat_activity\"" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { ocp: 1, patroni: 1, objects: 1, logs: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() {
+    window.removeEventListener("resize", this._resize);
+    clearInterval(this._clock);
+    this.disposeAll();
+  }
+  disposeAll() {
+    Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {};
+    Object.values(this._ros || {}).forEach(function (r) { r.disconnect(); }); this._ros = {};
+  }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el);
+    c.setOption(option);
+    this.charts[id] = c;
+    var self = this;
+    this._ros = this._ros || {};
+    if (this._ros[id]) this._ros[id].disconnect();
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (self.charts[id]) self.charts[id].resize(); });
+      ro.observe(el);
+      this._ros[id] = ro;
+    }
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      grid: { left: opts.left || 130, right: 56, top: 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { ocp: "ms-datasources", patroni: "ms-uptime", objects: "ms-forecast", logs: "ms-logvol" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "ocp") {
+      this.hbar("ms-datasources", ["prometheus", "loki", "postgres", "tempo"],
+        [{ value: 3, itemStyle: { color: "#107c10" } }, { value: 2, itemStyle: { color: "#f59e0b" } }, { value: 1, itemStyle: { color: "#17a2b8" } }, { value: 1, itemStyle: { color: "#a78bfa" } }],
+        { left: 100, fmt: function (v) { return v + " datasources"; } });
+      this.donut("ms-querylang", [
+        { name: "PromQL", value: 104, itemStyle: { color: "#107c10" } },
+        { name: "LogQL", value: 31, itemStyle: { color: "#f59e0b" } },
+        { name: "SQL", value: 7, itemStyle: { color: "#17a2b8" } }
+      ], "142", "queries");
+    } else if (tab === "patroni") {
+      var hours = [];
+      for (var i = 23; i >= 0; i--) { var d = new Date(Date.now() - i * 3600e3); hours.push(String(d.getHours()).padStart(2, "0") + ":00"); }
+      this.mk("ms-uptime", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        tooltip: Object.assign(this.base().tooltip, { valueFormatter: function (v) { return v + "%"; } }),
+        xAxis: { type: "category", data: hours, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 5 } },
+        yAxis: { type: "value", min: 95, max: 100, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "instance1-0", type: "line", smooth: true, showSymbol: false, data: hours.map(function () { return 100; }), lineStyle: { width: 2, color: "#107c10" }, itemStyle: { color: "#107c10" } },
+          { name: "instance2-0", type: "line", smooth: true, showSymbol: false, data: hours.map(function () { return 100; }), lineStyle: { width: 2, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" } },
+          { name: "dr-instance1-0", type: "line", smooth: true, showSymbol: false, data: hours.map(function (_, j) { return j === 14 ? 96.4 : 100; }), lineStyle: { width: 2, color: "#f59e0b" }, itemStyle: { color: "#f59e0b" } }
+        ]
+      }));
+      this.mk("ms-loop", Object.assign(this.base(), {
+        tooltip: Object.assign(this.base().tooltip, { valueFormatter: function (v) { return v + " ms"; } }),
+        xAxis: { type: "category", data: hours, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 5 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "run_cycle", type: "line", smooth: true, showSymbol: false, areaStyle: { opacity: 0.1, color: "#7c3aed" }, data: hours.map(function (_, j) { return Math.round(38 + 12 * Math.sin(j / 3) + Math.random() * 10); }), lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" } }]
+      }));
+    } else if (tab === "objects") {
+      var days = [], hist = [], proj = [];
+      for (var k = 29; k >= 0; k--) { var t = new Date(Date.now() - k * 86400e3); days.push((t.getMonth() + 1) + "/" + t.getDate()); hist.push(+(112.1 + (29 - k) * 0.21 + Math.random() * 0.3).toFixed(1)); }
+      for (var m = 1; m <= 30; m++) { var f = new Date(Date.now() + m * 86400e3); days.push((f.getMonth() + 1) + "/" + f.getDate()); proj.push(+(118.4 + m * 0.22).toFixed(1)); }
+      this.mk("ms-forecast", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        tooltip: Object.assign(this.base().tooltip, { valueFormatter: function (v) { return v + " GiB"; } }),
+        xAxis: { type: "category", data: days, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 9 } },
+        yAxis: { type: "value", min: 105, splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: "{value} GiB" } },
+        series: [
+          { name: "History", type: "line", smooth: true, showSymbol: false, data: hist, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" } },
+          { name: "Projection", type: "line", smooth: true, showSymbol: false, data: hist.map(function () { return null; }).concat(proj), lineStyle: { width: 2, type: "dashed", color: "#f59e0b" }, itemStyle: { color: "#f59e0b" },
+            markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "PVC 500 GiB", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 500 }] } }
+        ]
+      }));
+      this.donut("ms-storagesplit", [
+        { name: "Table", value: 84.2, itemStyle: { color: "#7c3aed" } },
+        { name: "Index", value: 34.2, itemStyle: { color: "#17a2b8" } }
+      ], "118.4", "GiB total");
+      this.hbar("ms-toptables", ["line_items", "orders", "event_log", "payments", "inventory_moves", "customers"],
+        [24.8, 18.1, 12.9, 11.4, 9.8, 3.1], { left: 120, fmt: function (v) { return v + " GiB"; }, labelFmt: "{c} GiB" });
+    } else if (tab === "logs") {
+      var pts = [];
+      for (var p = 0; p < 36; p++) { var q = new Date(Date.now() - (36 - p) * 10 * 60e3); pts.push(String(q.getHours()).padStart(2, "0") + ":" + String(q.getMinutes()).padStart(2, "0")); }
+      function series(name, base, color) { return { name: name, type: "bar", stack: "lv", data: pts.map(function () { return Math.round(base + Math.random() * base * 0.6); }), barWidth: "58%", itemStyle: { color: color } }; }
+      this.mk("ms-logvol", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: pts, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 8 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [series("LOG", 120, "#a78bfa"), series("WARNING", 9, "#f59e0b"), series("ERROR", 2, "#dc3545")]
+      }));
+      this.hbar("ms-logclass", ["checkpoint", "autovacuum", "connection", "wal/archive", "lock timeout", "pgaudit"],
+        [412, 268, 1104, 186, 14, 890].map(function (v, i) { return { value: v, itemStyle: { color: ["#7c3aed", "#17a2b8", "#a78bfa", "#107c10", "#dc3545", "#f59e0b"][i] } }; }),
+        { left: 110, fmt: function (v) { return v + " events"; } });
+    }
+  }
+}
+</script>
+</body>
+</html>
