@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes sePulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="se-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Security</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:sePulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPosture }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Security Posture" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Posture score</div><div class="value">84</div><div class="sub">B+ · +3 this week</div></div>
+          <div class="kpi red"><div class="label">Open findings</div><div class="value">9</div><div class="sub">2 critical · 4 high</div></div>
+          <div class="kpi green"><div class="label">Controls passing</div><div class="value">142</div><div class="sub">of 168 checked</div></div>
+          <div class="kpi orange"><div class="label">TLS cert expiry</div><div class="value">18 d</div><div class="sub">prod-pgcluster-uae primary</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Posture by domain <span class="meta">weighted control coverage</span></div><div class="bd"><div id="se-posture-radar" style="height:290px"></div></div></div>
+          <div class="card"><div class="hd">Findings by category <span class="meta">open · by severity</span></div><div class="bd"><div id="se-posture-cat" style="height:290px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Top security findings <span class="meta">CIS PostgreSQL 16 + platform policy</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Domain</th><th>Finding</th><th>Resource</th><th>Control</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ findingRows }}" as="r" hint-placeholder-count="5">
+                  <tr><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.sev }}</span></td><td class="txt-xs muted">{{ r.domain }}</td><td style="min-width:280px"><strong class="txt-xs">{{ r.title }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:520px">{{ r.summary }}</div></td><td class="mono txt-xs">{{ r.res }}</td><td class="mono txt-xs">{{ r.control }}</td><td><span class="pill {{ r.statusTone }}" style="white-space:nowrap">{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAuth }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Authentication" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Auth methods</div><div class="value">3</div><div class="sub">scram · cert · ldap</div></div>
+          <div class="kpi green"><div class="label">SCRAM coverage</div><div class="value">96%</div><div class="sub">4 roles on md5</div></div>
+          <div class="kpi red"><div class="label">Failed logins 24h</div><div class="value">218</div><div class="sub">3 source IPs</div></div>
+          <div class="kpi teal"><div class="label">Service accounts</div><div class="value">27</div><div class="sub">18 cert-based</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">pg_hba authentication methods <span class="meta">effective ruleset · pg_hba.conf</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Type</th><th>Database</th><th>User</th><th>Source</th><th>Method</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ hbaRows }}" as="h" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ h.type }}</td><td class="mono txt-xs">{{ h.db }}</td><td class="mono txt-xs">{{ h.user }}</td><td class="mono txt-xs">{{ h.source }}</td><td><span class="pill {{ h.tone }}" style="white-space:nowrap">{{ h.method }}</span></td><td><span class="pill {{ h.statusTone }}" style="white-space:nowrap"><span class="dot"></span>{{ h.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Failed authentication <span class="meta">24h · by hour</span></div><div class="bd"><div id="se-auth-fail" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent authentication events <span class="meta">log-derived · newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Time</th><th>Role</th><th>Database</th><th>Source</th><th>Method</th><th>Result</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ authEventRows }}" as="e" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ e.t }}</td><td class="mono txt-xs">{{ e.role }}</td><td class="mono txt-xs">{{ e.db }}</td><td class="mono txt-xs">{{ e.source }}</td><td class="txt-xs">{{ e.method }}</td><td><span class="pill {{ e.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ e.result }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTls }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="TLS Certificates" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Certificates</div><div class="value">7</div><div class="sub">server · client · CA</div></div>
+          <div class="kpi red"><div class="label">Expiring ≤30 d</div><div class="value">2</div><div class="sub">1 primary serving</div></div>
+          <div class="kpi green"><div class="label">Min TLS version</div><div class="value">1.3</div><div class="sub">1.2 disabled</div></div>
+          <div class="kpi teal"><div class="label">Auto-renew</div><div class="value">5 / 7</div><div class="sub">cert-manager</div></div>
+        </div>
+        <div class="card"><div class="hd">Certificate expiry runway <span class="meta">days remaining · renewal threshold 30 d</span></div><div class="bd"><div id="se-tls-expiry" style="height:260px"></div></div></div>
+        <div class="card">
+          <div class="hd">Certificate inventory <span class="meta">cert-manager + PGO serving certs</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Certificate</th><th>Subject / CN</th><th>Type</th><th>Issuer</th><th class="num">Expires</th><th>Renew</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ certRows }}" as="c" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ c.name }}</td><td class="mono txt-xs">{{ c.cn }}</td><td class="txt-xs">{{ c.type }}</td><td class="txt-xs muted">{{ c.issuer }}</td><td class="num mono txt-xs">{{ c.expires }}</td><td><span class="pill {{ c.renewTone }}" style="white-space:nowrap">{{ c.renew }}</span></td><td><span class="pill {{ c.statusTone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPgaudit }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="pgaudit Settings" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Audit classes</div><div class="value">5</div><div class="sub">write · ddl · role · read · misc</div></div>
+          <div class="kpi teal"><div class="label">Events / day</div><div class="value">1.4M</div><div class="sub">7 d avg</div></div>
+          <div class="kpi orange"><div class="label">Audit log size</div><div class="value">62 GiB</div><div class="sub">30 d retained</div></div>
+          <div class="kpi green"><div class="label">SIEM forwarding</div><div class="value">on</div><div class="sub">Splunk HEC</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">pgaudit configuration <span class="meta">pgaudit.* GUCs · effective</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Parameter</th><th>Value</th><th>Scope</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ pgauditRows }}" as="p" hint-placeholder-count="6">
+                    <tr><td class="mono txt-xs">{{ p.name }}</td><td class="mono txt-xs"><strong>{{ p.value }}</strong></td><td class="txt-xs muted">{{ p.scope }}</td><td><span class="pill {{ p.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ p.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Audit event volume <span class="meta">by class · 24h</span></div><div class="bd"><div id="se-audit-vol" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent audit log <span class="meta">AUDIT: session entries · newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Time</th><th>Class</th><th>Role</th><th>Object</th><th>Statement</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ auditLogRows }}" as="a" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ a.t }}</td><td><span class="pill {{ a.tone }}" style="white-space:nowrap">{{ a.cls }}</span></td><td class="mono txt-xs">{{ a.role }}</td><td class="mono txt-xs">{{ a.obj }}</td><td class="mono txt-xs" style="white-space:normal;max-width:420px">{{ a.stmt }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCompliance }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Compliance Reports" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Frameworks</div><div class="value">4</div><div class="sub">CIS · PCI · SOC2 · RBI</div></div>
+          <div class="kpi green"><div class="label">Controls passing</div><div class="value">88%</div><div class="sub">148 of 168</div></div>
+          <div class="kpi red"><div class="label">Open gaps</div><div class="value">20</div><div class="sub">6 high priority</div></div>
+          <div class="kpi teal"><div class="label">Last report</div><div class="value">2 d</div><div class="sub">ago · signed</div></div>
+        </div>
+        <div class="card"><div class="hd">Control coverage by framework <span class="meta">passing vs total mapped controls</span></div><div class="bd"><div id="se-comp-cov" style="height:250px"></div></div></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Control gaps <span class="meta">failing · by framework</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Control</th><th>Framework</th><th>Requirement</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ gapRows }}" as="g" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ g.id }}</td><td class="txt-xs">{{ g.fw }}</td><td class="txt-xs" style="white-space:normal;max-width:340px">{{ g.req }}</td><td><span class="pill {{ g.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ g.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Report history <span class="meta">signed evidence packs</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ reportRows }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ r.tone }}" style="white-space:nowrap">{{ r.fw }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ r.title }}</div><div class="muted txt-xs">{{ r.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEncryption }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Encryption and Keys" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Encryption at rest</div><div class="value">100%</div><div class="sub">LUKS · storage class</div></div>
+          <div class="kpi navy"><div class="label">TLS in transit</div><div class="value">enforced</div><div class="sub">hostssl only</div></div>
+          <div class="kpi teal"><div class="label">Managed keys</div><div class="value">6</div><div class="sub">Vault Transit</div></div>
+          <div class="kpi orange"><div class="label">Next rotation</div><div class="value">12 d</div><div class="sub">WAL archive key</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Encryption coverage <span class="meta">volumes · backup · WAL</span></div><div class="bd"><div id="se-enc-cov" style="height:260px"></div></div></div>
+          <div class="card">
+            <div class="hd">Key inventory <span class="meta">Vault Transit + cert-manager</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Key</th><th>Purpose</th><th>Algorithm</th><th class="num">Rotated</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ keyRows }}" as="k" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ k.name }}</td><td class="txt-xs">{{ k.purpose }}</td><td class="mono txt-xs">{{ k.algo }}</td><td class="num mono txt-xs">{{ k.rotated }}</td><td><span class="pill {{ k.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ k.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Rotation schedule <span class="meta">automated · Vault lease driven</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Key</th><th>Policy</th><th class="num">Last</th><th class="num">Next</th><th>Automation</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ rotationRows }}" as="r" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ r.name }}</td><td class="txt-xs muted">{{ r.policy }}</td><td class="num mono txt-xs">{{ r.last }}</td><td class="num mono txt-xs"><strong>{{ r.next }}</strong></td><td class="txt-xs">{{ r.auto }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showNetwork }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Network / Private Access" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Public exposure</div><div class="value">none</div><div class="sub">private endpoints only</div></div>
+          <div class="kpi navy"><div class="label">Private endpoints</div><div class="value">3</div><div class="sub">prod · dr · analytics</div></div>
+          <div class="kpi teal"><div class="label">Allowed CIDRs</div><div class="value">6</div><div class="sub">NetworkPolicy</div></div>
+          <div class="kpi orange"><div class="label">Blocked 24h</div><div class="value">1,204</div><div class="sub">policy denied</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Connection sources <span class="meta">accepted · by network zone</span></div><div class="bd"><div id="se-net-sources" style="height:260px"></div></div></div>
+          <div class="card">
+            <div class="hd">Private endpoints <span class="meta">OpenShift Route + Service</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Endpoint</th><th>Cluster</th><th>Zone</th><th>TLS</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ endpointRows }}" as="e" hint-placeholder-count="4">
+                    <tr><td class="mono txt-xs">{{ e.host }}</td><td class="mono txt-xs">{{ e.cluster }}</td><td class="txt-xs">{{ e.zone }}</td><td><span class="pill {{ e.tlsTone }}" style="white-space:nowrap">{{ e.tls }}</span></td><td><span class="pill {{ e.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ e.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">NetworkPolicy / firewall rules <span class="meta">effective ingress allowlist</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Rule</th><th>Source CIDR</th><th>Namespace / Selector</th><th class="num">Port</th><th>Action</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ ruleRows }}" as="r" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ r.name }}</td><td class="mono txt-xs">{{ r.cidr }}</td><td class="mono txt-xs">{{ r.sel }}</td><td class="num mono txt-xs">{{ r.port }}</td><td><span class="pill {{ r.actionTone }}" style="white-space:nowrap">{{ r.action }}</span></td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showReview }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Access Recertification" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Active campaign</div><div class="value">Q3</div><div class="sub">due Aug 15</div></div>
+          <div class="kpi orange"><div class="label">Pending attestations</div><div class="value">14</div><div class="sub">of 52 roles</div></div>
+          <div class="kpi green"><div class="label">Certified</div><div class="value">33</div><div class="sub">this cycle</div></div>
+          <div class="kpi red"><div class="label">Revoked</div><div class="value">5</div><div class="sub">excess privilege</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recertification campaigns <span class="meta">quarterly access review</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Campaign</th><th>Scope</th><th class="num">Reviewed</th><th class="num">Revoked</th><th>Due</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ campaignRows }}" as="c" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ c.name }}</td><td class="txt-xs">{{ c.scope }}</td><td class="num mono txt-xs">{{ c.reviewed }}</td><td class="num mono txt-xs">{{ c.revoked }}</td><td class="mono txt-xs">{{ c.due }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Roles awaiting attestation <span class="meta">privilege owner sign-off required</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Role</th><th>Type</th><th>Grants</th><th>Last used</th><th>Owner</th><th>Recommendation</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ attestRows }}" as="a" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ a.role }}</td><td class="txt-xs muted">{{ a.type }}</td><td class="mono txt-xs" style="white-space:normal;max-width:260px">{{ a.grants }}</td><td class="mono txt-xs">{{ a.lastUsed }}</td><td class="txt-xs">{{ a.owner }}</td><td><span class="pill {{ a.tone }}" style="white-space:nowrap">{{ a.rec }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSensitive }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Sensitive Data" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Classified columns</div><div class="value">64</div><div class="sub">across 5 databases</div></div>
+          <div class="kpi red"><div class="label">PII columns</div><div class="value">28</div><div class="sub">9 unmasked in clones</div></div>
+          <div class="kpi teal"><div class="label">Masking policies</div><div class="value">6</div><div class="sub">clone/fork scope</div></div>
+          <div class="kpi green"><div class="label">Last scan</div><div class="value">2 d</div><div class="sub">ago · full catalog</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Sensitive column inventory <span class="meta">classification scan · catalog</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Column</th><th>Database</th><th>Class</th><th>Detection</th><th>Masking (clones)</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ sensitiveRows }}" as="s" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ s.col }}</td><td class="mono txt-xs">{{ s.db }}</td><td><span class="pill {{ s.classTone }}" style="white-space:nowrap">{{ s.cls }}</span></td><td class="txt-xs muted">{{ s.detect }}</td><td class="txt-xs">{{ s.mask }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Access to sensitive data <span class="meta">roles with SELECT on PII columns</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Role</th><th>Scope</th><th class="num">PII columns</th><th>Justification</th><th>Review</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ sensAccessRows }}" as="a" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ a.role }}</td><td class="txt-xs">{{ a.scope }}</td><td class="num mono txt-xs">{{ a.cols }}</td><td class="txt-xs muted">{{ a.just }}</td><td><span class="pill {{ a.tone }}" style="white-space:nowrap">{{ a.review }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAccessRules }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Firewall / Access Rules" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Access rules</div><div class="value">14</div><div class="sub">pg_hba + NetworkPolicy</div></div>
+          <div class="kpi green"><div class="label">Default posture</div><div class="value">deny</div><div class="sub">allowlist only</div></div>
+          <div class="kpi orange"><div class="label">Broad rules</div><div class="value">1</div><div class="sub">/16 on analytics</div></div>
+          <div class="kpi red"><div class="label">Denied (24h)</div><div class="value">1,204</div><div class="sub">policy blocked</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:140px"><label>Layer</label><select><option>All</option><option>pg_hba</option><option>NetworkPolicy</option></select></div>
+            <div class="field" style="margin:0;min-width:170px"><label>Source CIDR</label><input placeholder="10.20.0.0/16"></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Action</label><select><option>allow</option><option>deny</option></select></div>
+            <button class="btn sm primary" disabled="disabled">Add rule (SHADOW)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Effective access rules <span class="meta">merged pg_hba.conf + NetworkPolicy · ordered</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th class="num">#</th><th>Layer</th><th>Source</th><th>Target</th><th>Method / Port</th><th>Action</th><th>Hits (24h)</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ accessRuleRows }}" as="r" hint-placeholder-count="7">
+                  <tr><td class="num mono txt-xs">{{ r.n }}</td><td class="txt-xs">{{ r.layer }}</td><td class="mono txt-xs">{{ r.source }}</td><td class="mono txt-xs">{{ r.target }}</td><td class="mono txt-xs">{{ r.method }}</td><td><span class="pill {{ r.actionTone }}" style="white-space:nowrap">{{ r.action }}</span></td><td class="num mono txt-xs">{{ r.hits }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSiem }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Event Streaming / SIEM" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">SIEM forwarding</div><div class="value">on</div><div class="sub">Splunk HEC</div></div>
+          <div class="kpi navy"><div class="label">Events (24h)</div><div class="value">1.4M</div><div class="sub">audit + auth + system</div></div>
+          <div class="kpi teal"><div class="label">Delivery lag</div><div class="value">2.1 s</div><div class="sub">p95 end-to-end</div></div>
+          <div class="kpi red"><div class="label">Dropped (24h)</div><div class="value">0</div><div class="sub">retry queue empty</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Event volume by stream <span class="meta">forwarded to SIEM · 24h</span></div><div class="bd"><div id="se-siem-vol" style="height:250px"></div></div></div>
+          <div class="card">
+            <div class="hd">Streaming destinations <span class="meta">forwarders and status</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Destination</th><th>Protocol</th><th>Streams</th><th class="num">Lag p95</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ siemDestRows }}" as="d" hint-placeholder-count="3">
+                    <tr><td class="txt-xs" style="font-weight:600">{{ d.name }}</td><td class="mono txt-xs">{{ d.proto }}</td><td class="txt-xs">{{ d.streams }}</td><td class="num mono txt-xs">{{ d.lag }}</td><td><span class="pill {{ d.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ d.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Stream catalog <span class="meta">event sources → SIEM sourcetypes</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Stream</th><th>Source</th><th>Sourcetype</th><th class="num">Events/min</th><th>Filter</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ siemStreamRows }}" as="s" hint-placeholder-count="5">
+                  <tr><td class="txt-xs" style="font-weight:600">{{ s.name }}</td><td class="mono txt-xs">{{ s.source }}</td><td class="mono txt-xs">{{ s.stype }}</td><td class="num mono txt-xs">{{ s.rate }}</td><td class="txt-xs muted">{{ s.filter }}</td><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /security, pg_hba.conf, pgaudit, cert-manager and /api/v1/compliance payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: &quot;100%&quot;, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { tab: "posture", group: "security", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "se") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      posture: ["Security Posture", "Weighted control coverage, open findings and CIS PostgreSQL 16 benchmark status"],
+      auth: ["Authentication", "pg_hba methods, SCRAM coverage and failed-login analysis"],
+      tls: ["TLS Certificates", "Serving and client certificate inventory, expiry runway and renewal"],
+      pgaudit: ["pgaudit Settings", "Audit class configuration, event volume and SIEM forwarding"],
+      compliance: ["Compliance Reports", "CIS, PCI-DSS, SOC 2 and RBI control coverage with signed evidence packs"],
+      encryption: ["Encryption & Keys", "At-rest and in-transit encryption, managed keys and rotation schedule"],
+      network: ["Network / Private Access", "Private endpoints, NetworkPolicy allowlist and connection sources"],
+      review: ["Access Recertification", "Quarterly access review campaigns and privilege attestation"],
+      sensitive: ["Sensitive Data", "Classified PII/PHI columns, masking policies and privileged access"],
+      accessrules: ["Firewall / Access Rules", "Ordered pg_hba + NetworkPolicy allowlist with hit counts"],
+      siem: ["Event Streaming / SIEM", "Audit, auth and system event forwarding to SIEM destinations"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "se" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showPosture: tab === "posture", showAuth: tab === "auth", showTls: tab === "tls", showPgaudit: tab === "pgaudit",
+      showCompliance: tab === "compliance", showEncryption: tab === "encryption", showNetwork: tab === "network", showReview: tab === "review",
+      showSensitive: tab === "sensitive", showAccessRules: tab === "accessrules", showSiem: tab === "siem",
+      sensitiveRows: [
+        { col: "customers.email", db: "orders_db", cls: "PII", classTone: "danger", detect: "pattern + dictionary", mask: "hash (sha256)", tone: "ok", status: "masked" },
+        { col: "customers.phone", db: "orders_db", cls: "PII", classTone: "danger", detect: "pattern", mask: "partial (last 4)", tone: "ok", status: "masked" },
+        { col: "payments.card_last4", db: "payments_db", cls: "PCI", classTone: "danger", detect: "column name", mask: "none (already truncated)", tone: "ok", status: "compliant" },
+        { col: "payments.iban", db: "payments_db", cls: "financial", classTone: "warn", detect: "pattern (IBAN)", mask: "redact", tone: "ok", status: "masked" },
+        { col: "customers.dob", db: "orders_db", cls: "PII", classTone: "danger", detect: "dictionary", mask: "generalize (year)", tone: "warn", status: "unmasked in analyst clone" },
+        { col: "support.notes", db: "orders_db", cls: "free-text", classTone: "warn", detect: "NER scan", mask: "none", tone: "warn", status: "review needed" }
+      ],
+      sensAccessRows: [
+        { role: "app_orders", scope: "orders_db (runtime)", cols: "18", just: "order processing", review: "certified", tone: "ok" },
+        { role: "app_payments", scope: "payments_db (runtime)", cols: "8", just: "settlement", review: "certified", tone: "ok" },
+        { role: "bi_reader", scope: "reporting views", cols: "4", just: "aggregated only", review: "certified", tone: "ok" },
+        { role: "temp_support", scope: "payments.* SELECT", cols: "6", just: "expired ticket", review: "revoke", tone: "danger" }
+      ],
+      accessRuleRows: [
+        { n: "1", layer: "pg_hba", source: "10.20.4.0/24", target: "replication / replicator", method: "cert", action: "allow", actionTone: "ok", hits: "1,842", tone: "ok", status: "active" },
+        { n: "2", layer: "pg_hba", source: "10.20.0.0/16", target: "all / all", method: "scram-sha-256", action: "allow", actionTone: "ok", hits: "412k", tone: "ok", status: "active" },
+        { n: "3", layer: "pg_hba", source: "10.20.12.0/24", target: "reporting / bi_reader", method: "md5", action: "allow", actionTone: "warn", hits: "9,204", tone: "warn", status: "migrate to scram" },
+        { n: "4", layer: "NetworkPolicy", source: "10.20.8.0/22", target: "ns:apps → 5432", method: "TCP 5432", action: "allow", actionTone: "ok", hits: "398k", tone: "ok", status: "active" },
+        { n: "5", layer: "NetworkPolicy", source: "10.20.6.0/24", target: "ns:pgbouncer → 6432", method: "TCP 6432", action: "allow", actionTone: "ok", hits: "1.1M", tone: "ok", status: "active" },
+        { n: "6", layer: "NetworkPolicy", source: "10.0.0.0/16", target: "reporting consumer → 5432", method: "TCP 5432", action: "allow", actionTone: "warn", hits: "8,411", tone: "warn", status: "too broad" },
+        { n: "7", layer: "both", source: "0.0.0.0/0", target: "*", method: "*", action: "deny", actionTone: "danger", hits: "1,204", tone: "muted", status: "default deny" }
+      ],
+      siemDestRows: [
+        { name: "Splunk HEC (prod)", proto: "HTTPS / HEC", streams: "audit, auth, system", lag: "2.1 s", tone: "ok", status: "delivering" },
+        { name: "Kafka (security bus)", proto: "TLS / kafka", streams: "audit", lag: "480 ms", tone: "ok", status: "delivering" },
+        { name: "S3 archive", proto: "HTTPS / batch", streams: "all (hourly)", lag: "1 h batch", tone: "info", status: "on schedule" }
+      ],
+      siemStreamRows: [
+        { name: "pgaudit", source: "postgres logs", stype: "pg:audit", rate: "980", filter: "class != MISC", tone: "ok", status: "streaming" },
+        { name: "auth events", source: "postgres logs", stype: "pg:auth", rate: "44", filter: "connection auth*", tone: "ok", status: "streaming" },
+        { name: "patroni events", source: "patroni", stype: "pg:ha", rate: "6", filter: "role changes + restarts", tone: "ok", status: "streaming" },
+        { name: "console audit", source: "/api/v1/audit", stype: "pg:console", rate: "12", filter: "all actions", tone: "ok", status: "streaming" },
+        { name: "k8s events", source: "namespace pg", stype: "k8s:events", rate: "18", filter: "warning+", tone: "ok", status: "streaming" }
+      ],
+      findingRows: [
+        { sev: "critical", tone: "danger", domain: "transport", title: "prod-pgcluster-uae primary serving cert expires in 18 days", summary: "cert-manager auto-renew disabled on this issuer; manual rotation required.", res: "prod-pgcluster-uae/tls-primary", control: "CIS 1.5", status: "open", statusTone: "warn" },
+        { sev: "critical", tone: "danger", domain: "authentication", title: "4 roles still using md5 password auth", summary: "Legacy md5 verifier present; SCRAM migration pending for reporting roles.", res: "pg_hba.conf", control: "CIS 2.1", status: "open", statusTone: "warn" },
+        { sev: "high", tone: "warn", domain: "audit", title: "pgaudit not logging role-change events", summary: "pgaudit.log missing 'role' class; privilege grants not captured.", res: "pgaudit.log", control: "PCI 10.2", status: "open", statusTone: "warn" },
+        { sev: "high", tone: "warn", domain: "network", title: "Wide ingress CIDR on reporting endpoint", summary: "NetworkPolicy allows /16; recommend narrowing to jump-host /32.", res: "prod-pgcluster-uae/np-reporting", control: "CIS 1.9", status: "acknowledged", statusTone: "muted" },
+        { sev: "medium", tone: "info", domain: "encryption", title: "WAL archive key past 80% of rotation window", summary: "Vault Transit key rotation due in 12 days; schedule confirmed.", res: "vault/wal-key", control: "SOC2 CC6.1", status: "scheduled", statusTone: "ok" }
+      ],
+      hbaRows: [
+        { type: "hostssl", db: "all", user: "all", source: "10.20.0.0/16", method: "scram-sha-256", tone: "ok", status: "compliant", statusTone: "ok" },
+        { type: "hostssl", db: "replication", user: "replicator", source: "10.20.4.0/24", method: "cert", tone: "info", status: "compliant", statusTone: "ok" },
+        { type: "hostssl", db: "orders_db", user: "app_orders", source: "10.20.8.0/24", method: "scram-sha-256", tone: "ok", status: "compliant", statusTone: "ok" },
+        { type: "hostssl", db: "reporting", user: "bi_reader", source: "10.20.12.0/24", method: "md5", tone: "danger", status: "non-compliant", statusTone: "warn" },
+        { type: "host", db: "all", user: "all", source: "0.0.0.0/0", method: "reject", tone: "muted", status: "default deny", statusTone: "muted" }
+      ],
+      authEventRows: [
+        { t: "17:44:02", role: "bi_reader", db: "reporting", source: "10.20.12.41", method: "md5", result: "ok", tone: "ok" },
+        { t: "17:43:51", role: "app_orders", db: "orders_db", source: "10.20.8.19", method: "scram", result: "ok", tone: "ok" },
+        { t: "17:41:18", role: "unknown", db: "postgres", source: "203.0.113.44", method: "scram", result: "failed", tone: "danger" },
+        { t: "17:41:12", role: "postgres", db: "postgres", source: "203.0.113.44", method: "scram", result: "failed", tone: "danger" },
+        { t: "17:39:03", role: "replicator", db: "replication", source: "10.20.4.6", method: "cert", result: "ok", tone: "ok" },
+        { t: "17:36:40", role: "app_mobile", db: "mobile_db", source: "10.20.9.22", method: "scram", result: "ok", tone: "ok" }
+      ],
+      certRows: [
+        { name: "tls-primary", cn: "prod-pgcluster-uae.svc", type: "server", issuer: "InternalCA", expires: "18 d", renewTone: "danger", renew: "manual", status: "expiring", statusTone: "warn" },
+        { name: "tls-replica", cn: "prod-pgcluster-uae-ro.svc", type: "server", issuer: "cert-manager", expires: "64 d", renewTone: "ok", renew: "auto", status: "valid", statusTone: "ok" },
+        { name: "client-replicator", cn: "replicator", type: "client", issuer: "InternalCA", expires: "27 d", renewTone: "warn", renew: "auto", status: "renewing", statusTone: "ok" },
+        { name: "ca-root", cn: "PG Internal Root CA", type: "CA", issuer: "self", expires: "612 d", renewTone: "ok", renew: "manual", status: "valid", statusTone: "ok" },
+        { name: "tls-reporting", cn: "prod-pgcluster-uae-repl.svc", type: "server", issuer: "cert-manager", expires: "88 d", renewTone: "ok", renew: "auto", status: "valid", statusTone: "ok" }
+      ],
+      pgauditRows: [
+        { name: "pgaudit.log", value: "write, ddl, read, misc", scope: "cluster", tone: "ok", status: "active" },
+        { name: "pgaudit.log_catalog", value: "off", scope: "cluster", tone: "muted", status: "default" },
+        { name: "pgaudit.log_parameter", value: "on", scope: "cluster", tone: "ok", status: "active" },
+        { name: "pgaudit.log_relation", value: "on", scope: "cluster", tone: "ok", status: "active" },
+        { name: "pgaudit.log_statement_once", value: "off", scope: "cluster", tone: "muted", status: "default" },
+        { name: "pgaudit.role", value: "auditor", scope: "cluster", tone: "warn", status: "role class off" }
+      ],
+      auditLogRows: [
+        { t: "17:44:10", cls: "WRITE", tone: "info", role: "app_orders", obj: "orders.line_item", stmt: "INSERT INTO orders.line_item (...) VALUES (...)" },
+        { t: "17:43:02", cls: "DDL", tone: "warn", role: "migrator", obj: "tps.posting_events", stmt: "CREATE INDEX CONCURRENTLY idx_pe_wh ON tps.posting_events(...)" },
+        { t: "17:40:55", cls: "READ", tone: "muted", role: "bi_reader", obj: "reporting.daily_txn_v", stmt: "SELECT * FROM reporting.daily_txn_v WHERE d = $1" },
+        { t: "17:38:21", cls: "MISC", tone: "muted", role: "postgres", obj: "-", stmt: "SET work_mem = '64MB'" },
+        { t: "17:35:12", cls: "WRITE", tone: "info", role: "app_mobile", obj: "mobile.sessions", stmt: "UPDATE mobile.sessions SET last_seen = now() WHERE ..." }
+      ],
+      gapRows: [
+        { id: "1.5", fw: "CIS PG16", req: "Ensure TLS certificate auto-renewal is configured for serving certs", tone: "danger", status: "fail" },
+        { id: "2.1", fw: "CIS PG16", req: "Ensure password authentication uses SCRAM-SHA-256, not md5", tone: "danger", status: "fail" },
+        { id: "10.2.5", fw: "PCI-DSS", req: "Log all changes to identification and authentication mechanisms", tone: "warn", status: "partial" },
+        { id: "CC6.6", fw: "SOC 2", req: "Restrict network access to database to approved sources only", tone: "warn", status: "partial" },
+        { id: "IS-4.3", fw: "RBI", req: "Encryption keys rotated within defined cryptoperiod", tone: "ok", status: "on track" }
+      ],
+      reportRows: [
+        { fw: "CIS PG16", tone: "info", title: "Benchmark report — 88% (148/168)", sub: "signed · 2026-07-21 · evidence pack #2201" },
+        { fw: "PCI-DSS", tone: "warn", title: "Quarterly scan — 3 findings", sub: "signed · 2026-07-14 · evidence pack #2184" },
+        { fw: "SOC 2", tone: "ok", title: "Type II interim — no exceptions", sub: "signed · 2026-06-30 · evidence pack #2150" },
+        { fw: "RBI", tone: "ok", title: "Data localization attestation", sub: "signed · 2026-06-12 · evidence pack #2098" }
+      ],
+      keyRows: [
+        { name: "wal-archive-key", purpose: "WAL / backup encryption", algo: "AES-256-GCM", rotated: "78 d ago", tone: "warn", status: "rotation due" },
+        { name: "storage-luks", purpose: "Volume at-rest", algo: "AES-256-XTS", rotated: "31 d ago", tone: "ok", status: "active" },
+        { name: "tls-issuer-key", purpose: "cert-manager issuer", algo: "RSA-4096", rotated: "12 d ago", tone: "ok", status: "active" },
+        { name: "pgcrypto-col", purpose: "Column-level (PII)", algo: "AES-256-CBC", rotated: "44 d ago", tone: "ok", status: "active" },
+        { name: "backup-repo-key", purpose: "pgBackRest repo", algo: "AES-256-CTR", rotated: "9 d ago", tone: "ok", status: "active" }
+      ],
+      rotationRows: [
+        { name: "wal-archive-key", policy: "90 d cryptoperiod", last: "May 6", next: "Aug 4", auto: "Vault lease", tone: "warn", status: "due 12 d" },
+        { name: "storage-luks", policy: "180 d", last: "Jun 22", next: "Dec 19", auto: "manual + change window", tone: "ok", status: "scheduled" },
+        { name: "tls-issuer-key", policy: "365 d", last: "Jul 11", next: "next year", auto: "cert-manager", tone: "ok", status: "healthy" },
+        { name: "pgcrypto-col", policy: "90 d", last: "Jun 9", next: "Sep 7", auto: "Vault lease", tone: "ok", status: "scheduled" }
+      ],
+      endpointRows: [
+        { host: "prod-pgcluster-uae.pg.svc", cluster: "prod-pgcluster-uae", zone: "prod-private", tls: "1.3", tlsTone: "ok", status: "active", tone: "ok" },
+        { host: "prod-pgcluster-uae-ro.pg.svc", cluster: "prod-pgcluster-uae", zone: "prod-private", tls: "1.3", tlsTone: "ok", status: "active", tone: "ok" },
+        { host: "dr-pgcluster-uae.pg.svc", cluster: "dr-pgcluster-uae", zone: "dr-private", tls: "1.3", tlsTone: "ok", status: "standby", tone: "info" },
+        { host: "prod-pgcluster-uae-repl.pg.svc", cluster: "prod-pgcluster-uae", zone: "prod-private", tls: "1.3", tlsTone: "ok", status: "active", tone: "ok" }
+      ],
+      ruleRows: [
+        { name: "allow-app-tier", cidr: "10.20.8.0/22", sel: "ns:apps", port: "5432", action: "allow", actionTone: "ok", status: "active", tone: "ok" },
+        { name: "allow-replication", cidr: "10.20.4.0/24", sel: "ns:pg", port: "5432", action: "allow", actionTone: "ok", status: "active", tone: "ok" },
+        { name: "allow-pgbouncer", cidr: "10.20.6.0/24", sel: "ns:pgbouncer", port: "6432", action: "allow", actionTone: "ok", status: "active", tone: "ok" },
+        { name: "allow-jumphost", cidr: "10.20.0.5/32", sel: "ns:bastion", port: "5432", action: "allow", actionTone: "ok", status: "active", tone: "ok" },
+        { name: "default-deny", cidr: "0.0.0.0/0", sel: "*", port: "*", action: "deny", actionTone: "danger", status: "active", tone: "muted" }
+      ],
+      campaignRows: [
+        { name: "Q3-2026", scope: "All prod DB roles", reviewed: "38 / 52", revoked: "5", due: "Aug 15", status: "in progress", tone: "warn" },
+        { name: "Q2-2026", scope: "All prod DB roles", reviewed: "49 / 49", revoked: "7", due: "May 15", status: "completed", tone: "ok" },
+        { name: "Q1-2026", scope: "Superuser + admin", reviewed: "12 / 12", revoked: "2", due: "Feb 15", status: "completed", tone: "ok" },
+        { name: "Ad-hoc SOC2", scope: "Service accounts", reviewed: "27 / 27", revoked: "3", due: "Jun 30", status: "completed", tone: "ok" }
+      ],
+      attestRows: [
+        { role: "bi_reader", type: "login role", grants: "SELECT on reporting.* , connect reporting", lastUsed: "2 h ago", owner: "Analytics lead", rec: "certify", tone: "ok" },
+        { role: "migrator", type: "login role", grants: "CREATE, DDL on tps, orders", lastUsed: "1 d ago", owner: "Platform DBA", rec: "certify", tone: "ok" },
+        { role: "legacy_etl", type: "login role", grants: "SUPERUSER (inherited)", lastUsed: "142 d ago", owner: "Data eng", rec: "revoke", tone: "danger" },
+        { role: "app_orders", type: "service account", grants: "CRUD on orders.*", lastUsed: "1 m ago", owner: "Orders team", rec: "certify", tone: "ok" },
+        { role: "temp_support", type: "login role", grants: "SELECT on payments.*", lastUsed: "38 d ago", owner: "Support mgr", rec: "review", tone: "warn" },
+        { role: "grafana_ro", type: "service account", grants: "pg_monitor", lastUsed: "30 s ago", owner: "SRE", rec: "certify", tone: "ok" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { posture: 1, auth: 1, tls: 1, pgaudit: 1, compliance: 1, encryption: 1, network: 1, review: 1, sensitive: 1, accessrules: 1, siem: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 20, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      legend: opts.legend, grid: { left: opts.left || 130, right: 62, top: opts.legend ? 30 : 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, max: opts.max },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: opts.series || [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { posture: "se-posture-radar", auth: "se-auth-fail", tls: "se-tls-expiry", pgaudit: "se-audit-vol", compliance: "se-comp-cov", encryption: "se-enc-cov", network: "se-net-sources", review: null, sensitive: null, accessrules: null, siem: "se-siem-vol" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "posture") {
+      this.mk("se-posture-radar", Object.assign(this.base(), {
+        tooltip: { trigger: "item" },
+        radar: { indicator: [
+            { name: "Authentication", max: 100 }, { name: "Transport", max: 100 }, { name: "Audit", max: 100 },
+            { name: "Network", max: 100 }, { name: "Encryption", max: 100 }, { name: "Access", max: 100 }
+          ], radius: "62%", splitLine: { lineStyle: { color: "#eef0f5" } }, splitArea: { areaStyle: { color: ["#fbfbfe", "#f4f4fb"] } }, axisName: { fontSize: 10, color: "#5b6b7b" } },
+        series: [{ type: "radar", data: [
+            { value: [82, 74, 78, 88, 94, 80], name: "current", areaStyle: { color: "rgba(124,58,237,0.15)" }, lineStyle: { color: "#7c3aed", width: 2 }, itemStyle: { color: "#7c3aed" } },
+            { value: [95, 95, 90, 95, 98, 92], name: "target", lineStyle: { color: "#17a2b8", width: 1.5, type: "dashed" }, itemStyle: { color: "#17a2b8" }, symbol: "none" }
+          ] }],
+        legend: { bottom: 0, icon: "circle", itemWidth: 8, data: ["current", "target"] }
+      }));
+      this.mk("se-posture-cat", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 90, right: 20, top: 30, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["Transport", "Authentication", "Audit", "Network", "Encryption"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [
+          { name: "critical", type: "bar", stack: "s", data: [1, 1, 0, 0, 0], barWidth: 14, itemStyle: { color: "#dc3545" } },
+          { name: "high", type: "bar", stack: "s", data: [0, 0, 1, 1, 0], barWidth: 14, itemStyle: { color: "#f59e0b" } },
+          { name: "medium", type: "bar", stack: "s", data: [0, 0, 1, 1, 1], barWidth: 14, itemStyle: { color: "#17a2b8", borderRadius: [0, 7, 7, 0] } }
+        ]
+      }));
+    } else if (tab === "auth") {
+      var at = this.times(24, 60);
+      var fails = at.map(function (_, i) { return Math.round(2 + Math.random() * 6); });
+      fails[20] = 64; fails[21] = 88; fails[22] = 41;
+      this.mk("se-auth-fail", Object.assign(this.base(), {
+        xAxis: { type: "category", data: at, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "failed logins", type: "line", smooth: true, showSymbol: false, data: fails, lineStyle: { width: 2.5, color: "#dc3545" }, itemStyle: { color: "#dc3545" }, areaStyle: { opacity: 0.12, color: "#dc3545" },
+          markPoint: { symbol: "pin", symbolSize: 40, data: [{ coord: [21, 88], value: "spike" }], itemStyle: { color: "#dc3545" }, label: { fontSize: 9, color: "#fff" } } }]
+      }));
+    } else if (tab === "tls") {
+      this.hbar("se-tls-expiry", ["tls-primary", "client-replicator", "tls-replica", "tls-analytics", "ca-root"],
+        [{ value: 18, itemStyle: { color: "#dc3545" } }, { value: 27, itemStyle: { color: "#f59e0b" } }, { value: 64, itemStyle: { color: "#107c10" } }, { value: 88, itemStyle: { color: "#107c10" } }, { value: 612, itemStyle: { color: "#17a2b8" } }],
+        { left: 120, fmt: function (v) { return v + " d"; }, labelFmt: function (p) { return p.value + " d"; },
+          series: [{ type: "bar", barWidth: 14, itemStyle: { borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: function (p) { return p.value + " d"; } }, data: [{ value: 18, itemStyle: { color: "#dc3545" } }, { value: 27, itemStyle: { color: "#f59e0b" } }, { value: 64, itemStyle: { color: "#107c10" } }, { value: 88, itemStyle: { color: "#107c10" } }, { value: 612, itemStyle: { color: "#17a2b8" } }],
+            markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "renew 30 d", fontSize: 10, color: "#dc3545" }, data: [{ xAxis: 30 }] } }] });
+    } else if (tab === "pgaudit") {
+      var at = this.times(24, 60);
+      var mk = function (base, jitter) { return at.map(function () { return Math.round(base + Math.random() * jitter); }); };
+      this.mk("se-audit-vol", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: at, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", name: "k events", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "WRITE", type: "line", stack: "a", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mk(38, 14), lineStyle: { width: 0 }, itemStyle: { color: "#7c3aed" } },
+          { name: "READ", type: "line", stack: "a", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mk(22, 10), lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" } },
+          { name: "DDL", type: "line", stack: "a", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mk(3, 4), lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" } },
+          { name: "MISC", type: "line", stack: "a", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mk(6, 5), lineStyle: { width: 0 }, itemStyle: { color: "#a78bfa" } }
+        ]
+      }));
+    } else if (tab === "compliance") {
+      this.mk("se-comp-cov", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 90, right: 40, top: 30, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", max: 100, splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: "{value}%" } },
+        yAxis: { type: "category", inverse: true, data: ["CIS PG16", "PCI-DSS", "SOC 2", "RBI"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [
+          { name: "passing", type: "bar", stack: "c", data: [88, 91, 96, 93], barWidth: 16, itemStyle: { color: "#107c10", borderRadius: [0, 0, 0, 0] }, label: { show: true, position: "insideRight", color: "#fff", fontSize: 10, formatter: "{c}%" } },
+          { name: "gap", type: "bar", stack: "c", data: [12, 9, 4, 7], barWidth: 16, itemStyle: { color: "#e4e4ec", borderRadius: [0, 8, 8, 0] } }
+        ]
+      }));
+    } else if (tab === "encryption") {
+      this.donut("se-enc-cov", [
+        { name: "Encrypted", value: 96, itemStyle: { color: "#107c10" } },
+        { name: "In migration", value: 3, itemStyle: { color: "#f59e0b" } },
+        { name: "Plaintext", value: 1, itemStyle: { color: "#dc3545" } }
+      ], "96%", "at rest");
+    } else if (tab === "siem") {
+      var st = this.times(24, 60);
+      var mkv = function (base, jit) { return st.map(function () { return Math.round(base + Math.random() * jit); }); };
+      this.mk("se-siem-vol", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: st, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", name: "events/min", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "audit", type: "line", stack: "s", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mkv(920, 220), lineStyle: { width: 0 }, itemStyle: { color: "#7c3aed" } },
+          { name: "auth", type: "line", stack: "s", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mkv(40, 30), lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" } },
+          { name: "system", type: "line", stack: "s", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mkv(30, 20), lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" } }
+        ]
+      }));
+    } else if (tab === "network") {
+      this.donut("se-net-sources", [
+        { name: "App tier", value: 62, itemStyle: { color: "#7c3aed" } },
+        { name: "PgBouncer", value: 24, itemStyle: { color: "#17a2b8" } },
+        { name: "Replication", value: 9, itemStyle: { color: "#f59e0b" } },
+        { name: "Bastion", value: 5, itemStyle: { color: "#a78bfa" } }
+      ], "6.2k", "conns/min");
+    }
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes opPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="op-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Operations</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:opPulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showReadiness }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Environment Readiness" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Environment score</div><div class="value">94%</div><div class="sub">production ready</div></div>
+          <div class="kpi navy"><div class="label">Clusters healthy</div><div class="value">4 / 4</div><div class="sub">all reconciled</div></div>
+          <div class="kpi orange"><div class="label">Open action items</div><div class="value">3</div><div class="sub">1 due today</div></div>
+          <div class="kpi teal"><div class="label">Collectors up</div><div class="value">6 / 6</div><div class="sub">last run on time</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Readiness domains <span class="meta">aggregated across estate</span></div>
+          <div class="bd" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for list="{{ readyDomainRows }}" as="d" hint-placeholder-count="6">
+              <div style="padding:14px;border:1px solid #edeef3;border-radius:10px;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;justify-content:space-between;align-items:center"><span class="txt-xs" style="font-weight:700">{{ d.name }}</span><span class="pill {{ d.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ d.score }}</span></div>
+                <div class="muted txt-xs">{{ d.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Open action items <span class="meta">blocking full readiness</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ actionRows }}" as="a" hint-placeholder-count="3">
+              <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ a.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.sev }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ a.title }}</div><div class="muted txt-xs">{{ a.sub }}</div></div>
+                <div class="mono txt-xs muted" style="white-space:nowrap">{{ a.due }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showInbox }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Ops Inbox" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi red"><div class="label">Open items</div><div class="value">11</div><div class="sub">2 critical</div></div>
+          <div class="kpi orange"><div class="label">Awaiting ack</div><div class="value">4</div><div class="sub">&gt; 15 min</div></div>
+          <div class="kpi navy"><div class="label">Assigned to me</div><div class="value">3</div><div class="sub">Local DBA</div></div>
+          <div class="kpi green"><div class="label">Resolved today</div><div class="value">18</div><div class="sub">MTTR 22 m</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Inbox <span class="meta">alerts · approvals · recommendations · newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Priority</th><th>Type</th><th>Item</th><th>Source</th><th>Assignee</th><th>Age</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ inboxRows }}" as="i" hint-placeholder-count="6">
+                  <tr><td><span class="pill {{ i.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ i.pri }}</span></td><td class="txt-xs">{{ i.type }}</td><td style="min-width:260px"><strong class="txt-xs">{{ i.title }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:460px">{{ i.summary }}</div></td><td class="mono txt-xs">{{ i.source }}</td><td class="txt-xs">{{ i.assignee }}</td><td class="mono txt-xs">{{ i.age }}</td><td><span class="pill {{ i.statusTone }}" style="white-space:nowrap">{{ i.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCalendar }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Change Calendar" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Scheduled changes</div><div class="value">6</div><div class="sub">next 14 d</div></div>
+          <div class="kpi orange"><div class="label">In freeze window</div><div class="value">2</div><div class="sub">quarter-end</div></div>
+          <div class="kpi green"><div class="label">Approved</div><div class="value">4</div><div class="sub">CAB signed</div></div>
+          <div class="kpi teal"><div class="label">Next window</div><div class="value">Sat 02:00</div><div class="sub">minor upgrade</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Upcoming changes <span class="meta">CHG records · change management</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Window</th><th>Change</th><th>Cluster</th><th>Type</th><th>Risk</th><th>Owner</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ changeRows }}" as="c" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ c.window }}</td><td style="min-width:220px"><strong class="txt-xs">{{ c.title }}</strong><div class="muted txt-xs">{{ c.id }}</div></td><td class="mono txt-xs">{{ c.cluster }}</td><td class="txt-xs">{{ c.type }}</td><td><span class="pill {{ c.riskTone }}" style="white-space:nowrap">{{ c.risk }}</span></td><td class="txt-xs">{{ c.owner }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="pill warn"><span class="dot"></span>change freeze</span>
+            <span class="muted txt-xs">Quarter-end freeze active Jul 28 – Aug 2 · only emergency changes with dual approval permitted.</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showMaintenance }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Maintenance Scheduler" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Scheduled jobs</div><div class="value">12</div><div class="sub">recurring</div></div>
+          <div class="kpi green"><div class="label">Last run success</div><div class="value">100%</div><div class="sub">last 24h</div></div>
+          <div class="kpi orange"><div class="label">Next job</div><div class="value">02:00</div><div class="sub">vacuum analyze</div></div>
+          <div class="kpi teal"><div class="label">Maintenance mode</div><div class="value">off</div><div class="sub">no active window</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Scheduled maintenance jobs <span class="meta">console-managed · cron</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Job</th><th>Schedule</th><th>Target</th><th class="num">Last run</th><th class="num">Duration</th><th>Next</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ maintRows }}" as="m" hint-placeholder-count="6">
+                  <tr><td class="txt-xs" style="font-weight:600">{{ m.job }}</td><td class="mono txt-xs">{{ m.schedule }}</td><td class="mono txt-xs">{{ m.target }}</td><td class="num mono txt-xs">{{ m.last }}</td><td class="num mono txt-xs">{{ m.dur }}</td><td class="mono txt-xs">{{ m.next }}</td><td><span class="pill {{ m.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAlerts }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Alert Rule Builder" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Active rules</div><div class="value">48</div><div class="sub">across 6 categories</div></div>
+          <div class="kpi red"><div class="label">Firing now</div><div class="value">2</div><div class="sub">1 critical</div></div>
+          <div class="kpi orange"><div class="label">Muted</div><div class="value">3</div><div class="sub">maintenance</div></div>
+          <div class="kpi green"><div class="label">Noise (7d)</div><div class="value">low</div><div class="sub">4% flapping</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:170px"><label>Metric</label><select><option>replication_lag_bytes</option><option>commit_latency_ms</option><option>connections_used_pct</option><option>disk_used_pct</option></select></div>
+            <div class="field" style="margin:0;width:110px"><label>Operator</label><select><option>&gt;</option><option>&gt;=</option><option>&lt;</option></select></div>
+            <div class="field" style="margin:0;width:120px"><label>Threshold</label><input value="5000000"></div>
+            <div class="field" style="margin:0;width:110px"><label>For</label><input value="5m"></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Severity</label><select><option>critical</option><option>warning</option><option>info</option></select></div>
+            <button class="btn sm" disabled="disabled">Test rule</button>
+            <button class="btn sm primary" disabled="disabled">Save (SHADOW)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Alert rules <span class="meta">evaluation + routing</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Rule</th><th>Condition</th><th>For</th><th>Severity</th><th>Route</th><th>State</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ ruleRows }}" as="r" hint-placeholder-count="6">
+                  <tr><td class="txt-xs" style="font-weight:600">{{ r.name }}</td><td class="mono txt-xs">{{ r.cond }}</td><td class="mono txt-xs">{{ r.for }}</td><td><span class="pill {{ r.sevTone }}" style="white-space:nowrap">{{ r.sev }}</span></td><td class="txt-xs">{{ r.route }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.state }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showHealth }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Platform Health" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Platform status</div><div class="value">healthy</div><div class="sub">all components</div></div>
+          <div class="kpi navy"><div class="label">Console API</div><div class="value">42 ms</div><div class="sub">p95</div></div>
+          <div class="kpi teal"><div class="label">DCS (etcd)</div><div class="value">3 / 3</div><div class="sub">quorum</div></div>
+          <div class="kpi orange"><div class="label">Collector queue</div><div class="value">0</div><div class="sub">no backlog</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Console API latency <span class="meta">p50 / p95 · 24h</span></div><div class="bd"><div id="op-health-api" style="height:250px"></div></div></div>
+          <div class="card">
+            <div class="hd">Platform components <span class="meta">control-plane services</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Component</th><th>Version</th><th class="num">Latency</th><th class="num">Uptime</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ componentRows }}" as="c" hint-placeholder-count="6">
+                    <tr><td class="txt-xs" style="font-weight:600">{{ c.name }}</td><td class="mono txt-xs">{{ c.ver }}</td><td class="num mono txt-xs">{{ c.latency }}</td><td class="num mono txt-xs">{{ c.uptime }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showQuotas }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Quotas and Limits" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Namespaces</div><div class="value">1</div><div class="sub">prod-pgcluster-uae-local</div></div>
+          <div class="kpi orange"><div class="label">Near limit</div><div class="value">2</div><div class="sub">&gt; 80%</div></div>
+          <div class="kpi green"><div class="label">Connection headroom</div><div class="value">18%</div><div class="sub">prod-pgcluster-uae</div></div>
+          <div class="kpi teal"><div class="label">Breaches (30d)</div><div class="value">1</div><div class="sub">connection limit</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Resource quota usage <span class="meta">used vs limit · prod-pgcluster-uae ns</span></div><div class="bd"><div id="op-quota-usage" style="height:260px"></div></div></div>
+          <div class="card">
+            <div class="hd">Namespace quotas <span class="meta">ResourceQuota + DB limits</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Resource</th><th>Namespace</th><th class="num">Used</th><th class="num">Limit</th><th>Utilization</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ quotaRows }}" as="q" hint-placeholder-count="6">
+                    <tr><td class="txt-xs">{{ q.resource }}</td><td class="mono txt-xs">{{ q.ns }}</td><td class="num mono txt-xs">{{ q.used }}</td><td class="num mono txt-xs">{{ q.limit }}</td><td><span class="pill {{ q.tone }}" style="white-space:nowrap">{{ q.pct }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showActivity }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Activity Stream" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Events today</div><div class="value">312</div><div class="sub">all sources</div></div>
+          <div class="kpi teal"><div class="label">Operator actions</div><div class="value">44</div><div class="sub">human-initiated</div></div>
+          <div class="kpi green"><div class="label">Automated</div><div class="value">268</div><div class="sub">agents · collectors</div></div>
+          <div class="kpi orange"><div class="label">Mutations blocked</div><div class="value">9</div><div class="sub">SHADOW mode</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Activity stream <span class="meta">unified audit feed · newest first</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ activityRows }}" as="a" hint-placeholder-count="8">
+              <div style="display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid #f2f3f7">
+                <div class="mono txt-xs muted" style="white-space:nowrap;width:64px">{{ a.t }}</div>
+                <span class="pill {{ a.tone }}" style="white-space:nowrap">{{ a.kind }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ a.title }}</div><div class="muted txt-xs" style="white-space:normal">{{ a.sub }}</div></div>
+                <div class="txt-xs muted" style="white-space:nowrap">{{ a.actor }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showRuns }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Run History" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Jobs (window)</div><div class="value">{{ runsCount }}</div><div class="sub">/api/v1/jobs</div></div>
+          <div class="kpi green"><div class="label">Succeeded</div><div class="value">{{ runsOk }}</div><div class="sub">completed</div></div>
+          <div class="kpi orange"><div class="label">Running</div><div class="value">{{ runsRunning }}</div><div class="sub">in progress</div></div>
+          <div class="kpi red"><div class="label">Failed</div><div class="value">{{ runsFailed }}</div><div class="sub">needs review</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Job run history <span class="meta">console jobs · GET /api/v1/jobs</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Job ID</th><th>Kind</th><th>Target</th><th class="num">Started</th><th class="num">Duration</th><th>By</th><th>Dry-run</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ runRows }}" as="r" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ r.id }}</td><td class="txt-xs" style="font-weight:600">{{ r.kind }}</td><td class="mono txt-xs">{{ r.target }}</td><td class="num mono txt-xs">{{ r.started }}</td><td class="num mono txt-xs">{{ r.duration }}</td><td class="txt-xs">{{ r.by }}</td><td class="mono txt-xs">{{ r.dryRun }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAudit }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Audit and Commands" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Audit entries</div><div class="value">{{ auditCount }}</div><div class="sub">/api/v1/audit</div></div>
+          <div class="kpi green"><div class="label">Executed</div><div class="value">{{ auditExec }}</div><div class="sub">applied changes</div></div>
+          <div class="kpi teal"><div class="label">Dry-run</div><div class="value">{{ auditDry }}</div><div class="sub">previewed only</div></div>
+          <div class="kpi orange"><div class="label">Blocked (SHADOW)</div><div class="value">{{ auditBlocked }}</div><div class="sub">mutation guard</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Audit &amp; command log <span class="meta">console audit log · GET /api/v1/audit</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th class="num">Time</th><th>Action</th><th>Role</th><th>Executed</th><th>Dry-run</th><th>Detail</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ auditRows }}" as="a" hint-placeholder-count="7">
+                  <tr><td class="num mono txt-xs">{{ a.t }}</td><td class="mono txt-xs" style="font-weight:600">{{ a.action }}</td><td class="txt-xs">{{ a.role }}</td><td><span class="pill {{ a.execTone }}" style="white-space:nowrap">{{ a.executed }}</span></td><td class="mono txt-xs">{{ a.dryRun }}</td><td class="mono txt-xs" style="white-space:normal;max-width:420px">{{ a.detail }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTokens }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="API Tokens" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:200px"><label>Token name</label><input placeholder="ci-readonly"></div>
+            <div class="field" style="margin:0;min-width:170px"><label>Scopes</label><select><option>read</option><option>read, write</option><option>read, admin</option></select></div>
+            <button class="btn sm primary" disabled="disabled">Create token (SHADOW)</button>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>secret shown once · POST /api/v1/tokens</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">API tokens <span class="meta">console-issued · GET /api/v1/tokens</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>ID</th><th>Name</th><th class="num">Created</th><th>Last 4</th><th>Scopes</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ tokenRows }}" as="t" hint-placeholder-count="2">
+                  <tr><td class="mono txt-xs">{{ t.id }}</td><td class="txt-xs" style="font-weight:600">{{ t.name }}</td><td class="num mono txt-xs">{{ t.created }}</td><td class="mono txt-xs">····{{ t.last4 }}</td><td class="mono txt-xs">{{ t.scopes }}</td><td><button class="btn sm ghost" disabled="disabled">Revoke</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTenants }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Tenants" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="hd">Tenants <span class="meta">workspace scoping · GET /api/v1/tenants</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>ID</th><th>Tenant</th><th>Clusters</th><th>Role</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ tenantRows }}" as="t" hint-placeholder-count="1">
+                  <tr><td class="mono txt-xs">{{ t.id }}</td><td class="txt-xs" style="font-weight:600">{{ t.name }}</td><td class="mono txt-xs">{{ t.clusters }}</td><td><span class="pill {{ t.tone }}" style="white-space:nowrap">{{ t.role }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="pill muted"><span class="dot"></span>single-tenant UAT</span>
+            <span class="muted txt-xs">This deployment is scoped to one tenant. Additional tenants and cluster isolation are enforced server-side per tenant membership.</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showNotifications }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Notifications" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="hd">Notification channels <span class="meta">GET /api/v1/notifications/channels</span></div>
+          <div class="bd">
+            <div style="text-align:center;padding:40px 24px">
+              <div style="font-family:'Times New Roman',Times,serif;font-size:22px;color:#212529">No notification channels configured</div>
+              <div class="muted txt-xs" style="margin-top:8px;max-width:440px;margin-left:auto;margin-right:auto">The backend returns an empty channel list on this deployment. Add Slack, email or PagerDuty routes to receive alert-rule notifications.</div>
+              <div style="margin-top:16px"><button class="btn sm" disabled="disabled">Add channel (SHADOW)</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showHelp }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Help and Runbooks" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="hd">Operational runbooks <span class="meta">built-in · GET /api/v1/help/runbooks</span></div>
+          <div class="bd" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for list="{{ runbookRows }}" as="r" hint-placeholder-count="3">
+              <div style="padding:16px;border:1px solid #edeef3;border-radius:10px;display:flex;flex-direction:column;gap:8px">
+                <span class="pill {{ r.tone }}" style="white-space:nowrap;align-self:flex-start"><span class="dot"></span>{{ r.id }}</span>
+                <div class="txt-xs" style="font-weight:700;font-size:14px">{{ r.title }}</div>
+                <div class="muted txt-xs" style="white-space:normal;flex:1">{{ r.summary }}</div>
+                <button class="btn sm ghost" style="align-self:flex-start" disabled="disabled">Open runbook</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLogAnalytics }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Log Analytics" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Log lines (6h)</div><div class="value">1.9M</div><div class="sub">Loki ingest</div></div>
+          <div class="kpi red"><div class="label">Error signatures</div><div class="value">7</div><div class="sub">distinct patterns</div></div>
+          <div class="kpi orange"><div class="label">Open findings</div><div class="value">3</div><div class="sub">correlated</div></div>
+          <div class="kpi teal"><div class="label">Error rate</div><div class="value">0.4%</div><div class="sub">of lines</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Log volume by level <span class="meta">Loki · 6h · /log-analytics/summary</span></div><div class="bd"><div id="op-la-volume" style="height:250px"></div></div></div>
+          <div class="card">
+            <div class="hd">Categories <span class="meta">/log-analytics/categories</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Category</th><th>Component</th><th class="num">Count</th><th>Trend</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ laCatRows }}" as="c" hint-placeholder-count="5">
+                    <tr><td class="txt-xs" style="font-weight:600">{{ c.category }}</td><td class="mono txt-xs">{{ c.component }}</td><td class="num mono txt-xs">{{ c.count }}</td><td><span class="pill {{ c.tone }}" style="white-space:nowrap">{{ c.trend }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Error signatures <span class="meta">clustered log patterns · /log-analytics/signatures</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Level</th><th>Signature</th><th>Component</th><th class="num">Count</th><th class="num">First seen</th><th class="num">Last seen</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ laSigRows }}" as="s" hint-placeholder-count="6">
+                  <tr><td><span class="pill {{ s.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ s.level }}</span></td><td class="mono txt-xs" style="white-space:normal;max-width:420px">{{ s.signature }}</td><td class="mono txt-xs">{{ s.component }}</td><td class="num mono txt-xs">{{ s.count }}</td><td class="num mono txt-xs">{{ s.first }}</td><td class="num mono txt-xs">{{ s.last }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Correlated findings <span class="meta">/log-analytics/findings</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ laFindingRows }}" as="f" hint-placeholder-count="3">
+              <div style="display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ f.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ f.sev }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ f.title }}</div><div class="muted txt-xs" style="white-space:normal">{{ f.detail }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Settings" style="display:flex;flex-direction:column;gap:12px">
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Profile <span class="meta">GET /api/v1/me</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ profileRows }}" as="p" hint-placeholder-count="5">
+                <div style="display:flex;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f2f3f7">
+                  <div class="muted txt-xs" style="width:140px">{{ p.label }}</div>
+                  <div class="mono txt-xs" style="flex:1;font-weight:600">{{ p.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Console preferences <span class="meta">PATCH /api/v1/me · settings</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:12px">
+              <div class="field" style="margin:0"><label>Timezone</label><select><option selected="selected">Asia/Dubai</option><option>UTC</option></select></div>
+              <div class="field" style="margin:0"><label>Density</label><select><option selected="selected">comfortable</option><option>compact</option></select></div>
+              <div class="field" style="margin:0"><label>Default view</label><select><option selected="selected">overview</option><option>readiness</option><option>alerts</option></select></div>
+              <div class="field" style="margin:0"><label>Auto-refresh (seconds)</label><input type="number" value="30"></div>
+              <div style="display:flex;gap:8px;align-items:center"><span class="pill ok"><span class="dot"></span>notifications on</span><div style="flex:1"></div><button class="btn sm primary" disabled="disabled">Save (SHADOW)</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showMaintFeed }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Maintenance and Patch Feed" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi orange"><div class="label">Available patches</div><div class="value">3</div><div class="sub">1 security</div></div>
+          <div class="kpi red"><div class="label">Security advisories</div><div class="value">1</div><div class="sub">CVE · high</div></div>
+          <div class="kpi navy"><div class="label">Current minor</div><div class="value">16.4</div><div class="sub">16.5 available</div></div>
+          <div class="kpi green"><div class="label">Applied (90d)</div><div class="value">4</div><div class="sub">prod + DR</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Patch &amp; advisory feed <span class="meta">PostgreSQL release feed + CVE tracker</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ patchRows }}" as="p" hint-placeholder-count="5">
+              <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ p.tone }}" style="white-space:nowrap;min-width:74px;justify-content:center">{{ p.kind }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ p.title }}</div><div class="muted txt-xs" style="white-space:normal;max-width:640px">{{ p.detail }}</div></div>
+                <div class="mono txt-xs muted" style="white-space:nowrap">{{ p.when }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTags }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Tags and Ownership" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Tagged resources</div><div class="value">18</div><div class="sub">clusters + dbs</div></div>
+          <div class="kpi orange"><div class="label">Untagged</div><div class="value">2</div><div class="sub">owner missing</div></div>
+          <div class="kpi teal"><div class="label">Cost centers</div><div class="value">4</div><div class="sub">chargeback</div></div>
+          <div class="kpi green"><div class="label">Owners</div><div class="value">6</div><div class="sub">teams</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Ownership &amp; tags <span class="meta">resource metadata · chargeback</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Resource</th><th>Type</th><th>Owner</th><th>Team</th><th>Environment</th><th>Cost center</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ tagRows }}" as="t" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ t.resource }}</td><td class="txt-xs">{{ t.type }}</td><td class="txt-xs">{{ t.owner }}</td><td class="txt-xs">{{ t.team }}</td><td><span class="pill {{ t.envTone }}" style="white-space:nowrap">{{ t.env }}</span></td><td class="mono txt-xs">{{ t.cc }}</td><td><span class="pill {{ t.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ t.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showIncidents }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Incident Packs" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi red"><div class="label">Open incidents</div><div class="value">1</div><div class="sub">P2</div></div>
+          <div class="kpi navy"><div class="label">Total packs</div><div class="value">23</div><div class="sub">with RCA</div></div>
+          <div class="kpi teal"><div class="label">MTTR (90d)</div><div class="value">42 m</div><div class="sub">median</div></div>
+          <div class="kpi green"><div class="label">Closed (30d)</div><div class="value">7</div><div class="sub">all signed</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Incident packs <span class="meta">timeline · evidence · RCA bundle</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>ID</th><th>Severity</th><th>Title</th><th class="num">Opened</th><th class="num">Duration</th><th>RCA</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ incidentRows }}" as="i" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ i.id }}</td><td><span class="pill {{ i.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ i.sev }}</span></td><td style="min-width:260px"><strong class="txt-xs">{{ i.title }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:480px">{{ i.summary }}</div></td><td class="num mono txt-xs">{{ i.opened }}</td><td class="num mono txt-xs">{{ i.duration }}</td><td><span class="pill {{ i.rcaTone }}" style="white-space:nowrap">{{ i.rca }}</span></td><td><span class="pill {{ i.tone }}" style="white-space:nowrap">{{ i.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEstateMatrix }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Estate Matrix" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Clusters</div><div class="value">2</div><div class="sub">prod + DR</div></div>
+          <div class="kpi green"><div class="label">Healthy</div><div class="value">1 / 1</div><div class="sub">prod green · DR gated</div></div>
+          <div class="kpi orange"><div class="label">Attention</div><div class="value">2</div><div class="sub">cells amber</div></div>
+          <div class="kpi teal"><div class="label">Dimensions</div><div class="value">6</div><div class="sub">per cluster</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Estate matrix <span class="meta">cluster × capability posture</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>HA</th><th>Backups</th><th>Security</th><th>Performance</th><th>Capacity</th><th>Version</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ matrixRows }}" as="m" hint-placeholder-count="4">
+                  <tr>
+                    <td class="mono txt-xs" style="font-weight:600">{{ m.cluster }}</td>
+                    <td><span class="pill {{ m.ha.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.ha.v }}</span></td>
+                    <td><span class="pill {{ m.backups.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.backups.v }}</span></td>
+                    <td><span class="pill {{ m.security.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.security.v }}</span></td>
+                    <td><span class="pill {{ m.perf.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.perf.v }}</span></td>
+                    <td><span class="pill {{ m.capacity.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ m.capacity.v }}</span></td>
+                    <td class="mono txt-xs">{{ m.version }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showVersionReady }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Version Readiness" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Running</div><div class="value">16.4</div><div class="sub">prod + DR</div></div>
+          <div class="kpi orange"><div class="label">Latest minor</div><div class="value">16.5</div><div class="sub">1 behind</div></div>
+          <div class="kpi red"><div class="label">EOL runway</div><div class="value">Nov 2028</div><div class="sub">PG 16</div></div>
+          <div class="kpi green"><div class="label">Extensions ready</div><div class="value">14 / 14</div><div class="sub">for 16.5</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Version readiness by cluster <span class="meta">current vs target · upgrade gating</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>Current</th><th>Target</th><th class="num">Behind</th><th>Extensions</th><th>Blocker</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ versionRows }}" as="v" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ v.cluster }}</td><td class="mono txt-xs">{{ v.cur }}</td><td class="mono txt-xs"><strong>{{ v.target }}</strong></td><td class="num mono txt-xs">{{ v.behind }}</td><td><span class="pill {{ v.extTone }}" style="white-space:nowrap">{{ v.ext }}</span></td><td class="txt-xs muted">{{ v.blocker }}</td><td><span class="pill {{ v.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ v.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Extension compatibility <span class="meta">against target 16.5</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Extension</th><th>Installed</th><th>Target-compatible</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ extRows }}" as="e" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ e.name }}</td><td class="mono txt-xs">{{ e.installed }}</td><td class="mono txt-xs">{{ e.compat }}</td><td><span class="pill {{ e.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ e.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEvidenceExport }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Evidence Export" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:170px"><label>Pack type</label><select><option>Compliance (CIS)</option><option>Incident RCA bundle</option><option>Change evidence</option><option>Access review</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Period</label><select><option>Last 30 days</option><option>Last quarter</option><option>Custom</option></select></div>
+            <div class="field" style="margin:0;min-width:130px"><label>Format</label><select><option>PDF + JSON</option><option>PDF</option><option>JSON</option></select></div>
+            <button class="btn sm primary" disabled="disabled">Generate &amp; sign (SHADOW)</button>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Exports (90d)</div><div class="value">18</div><div class="sub">signed packs</div></div>
+          <div class="kpi green"><div class="label">Integrity</div><div class="value">verified</div><div class="sub">sha256 + signature</div></div>
+          <div class="kpi teal"><div class="label">Retention</div><div class="value">7 y</div><div class="sub">immutable store</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent evidence exports <span class="meta">signed · immutable</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Pack</th><th>Type</th><th class="num">Generated</th><th class="num">Size</th><th>Signature</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ exportRows }}" as="x" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ x.id }}</td><td class="txt-xs">{{ x.type }}</td><td class="num mono txt-xs">{{ x.when }}</td><td class="num mono txt-xs">{{ x.size }}</td><td><span class="pill {{ x.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ x.sig }}</span></td><td><button class="btn sm ghost" disabled="disabled">Download</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /api/v1/ops inbox, change calendar, scheduler, alert rules, platform health and audit payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: &quot;100%&quot;, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { tab: "readiness", group: "ops", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "op") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      readiness: ["Environment Readiness", "Aggregated estate readiness across health, backups, HA and change domains"],
+      inbox: ["Ops Inbox", "Unified queue of alerts, approvals and recommendations awaiting action"],
+      calendar: ["Change Calendar", "Scheduled changes, CAB approvals and active freeze windows"],
+      maintenance: ["Maintenance Scheduler", "Console-managed recurring maintenance jobs and run history"],
+      alerts: ["Alert Rule Builder", "Threshold rule authoring, routing and firing state"],
+      health: ["Platform Health", "Control-plane component status, API latency and DCS quorum"],
+      quotas: ["Quotas & Limits", "Namespace ResourceQuota and per-cluster connection/storage limits"],
+      activity: ["Activity Stream", "Unified audit feed of operator and automated actions"],
+      runs: ["Run History", "Console job run history from GET /api/v1/jobs with status and duration"],
+      audit: ["Audit & Commands", "Append-only audit log of actions, roles and executed/dry-run state"],
+      tokens: ["API Tokens", "Console-issued API tokens with scopes; secret shown once on create"],
+      tenants: ["Tenants", "Workspace tenant membership and cluster scoping"],
+      notifications: ["Notifications", "Alert-routing notification channels"],
+      help: ["Help & Runbooks", "Built-in operational runbooks for failover, restore and scaling"],
+      loganalytics: ["Log Analytics", "Loki-backed error intelligence — signatures, categories and correlated findings"],
+      settings: ["Settings", "Operator profile and console preferences from /api/v1/me"],
+      maintfeed: ["Maintenance & Patch Feed", "PostgreSQL release feed and CVE advisories with applied history"],
+      tags: ["Tags & Ownership", "Resource ownership, team, environment and cost-center metadata"],
+      incidents: ["Incident Packs", "Incident timelines with evidence and signed RCA bundles"],
+      estatematrix: ["Estate Matrix", "Cluster × capability posture grid across the estate"],
+      versionready: ["Version Readiness", "Current vs target version and extension compatibility gating"],
+      evidenceexport: ["Evidence Export", "Generate and download signed compliance/incident evidence packs"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "op" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showReadiness: tab === "readiness", showInbox: tab === "inbox", showCalendar: tab === "calendar", showMaintenance: tab === "maintenance",
+      showAlerts: tab === "alerts", showHealth: tab === "health", showQuotas: tab === "quotas", showActivity: tab === "activity",
+      showRuns: tab === "runs", showAudit: tab === "audit", showTokens: tab === "tokens", showTenants: tab === "tenants", showNotifications: tab === "notifications", showHelp: tab === "help",
+      showLogAnalytics: tab === "loganalytics", showSettings: tab === "settings",
+      showMaintFeed: tab === "maintfeed", showTags: tab === "tags", showIncidents: tab === "incidents",
+      showEstateMatrix: tab === "estatematrix", showVersionReady: tab === "versionready", showEvidenceExport: tab === "evidenceexport",
+      patchRows: [
+        { kind: "security", tone: "danger", title: "PostgreSQL 16.5 — security release (CVE-2026-1234)", detail: "Fixes privilege-escalation via crafted CREATE FUNCTION; high severity. Rolling restart, ~8 s per member.", when: "Jul 18" },
+        { kind: "minor", tone: "warn", title: "PostgreSQL 16.5 — bug fixes", detail: "Autovacuum stat accuracy, logical replication slot cleanup, planner regression fix.", when: "Jul 18" },
+        { kind: "operator", tone: "info", title: "PGO 5.6.1 available", detail: "Backup schedule reconcile fix; non-disruptive operator upgrade.", when: "Jul 10" },
+        { kind: "applied", tone: "ok", title: "PostgreSQL 16.4 applied", detail: "Rolling restart across prod-pgcluster-uae (leader + 2 replicas) — no incidents.", when: "May 30" },
+        { kind: "applied", tone: "ok", title: "pgBackRest 2.51 applied", detail: "Repo performance improvements; verification passed.", when: "Apr 12" }
+      ],
+      tagRows: [
+        { resource: "prod-pgcluster-uae", type: "cluster", owner: "Local DBA", team: "Platform DBA", env: "production", envTone: "danger", cc: "CC-1001", tone: "ok", status: "tagged" },
+        { resource: "dr-pgcluster-uae", type: "cluster", owner: "Local DBA", team: "Platform DBA", env: "dr", envTone: "info", cc: "CC-1001", tone: "ok", status: "tagged" },
+        { resource: "orders_db", type: "database", owner: "Orders team", team: "Orders", env: "production", envTone: "danger", cc: "CC-2010", tone: "ok", status: "tagged" },
+        { resource: "payments_db", type: "database", owner: "Payments team", team: "Payments", env: "production", envTone: "danger", cc: "CC-2011", tone: "ok", status: "tagged" },
+        { resource: "reporting", type: "database", owner: "—", team: "—", env: "production", envTone: "danger", cc: "—", tone: "warn", status: "untagged" }
+      ],
+      incidentRows: [
+        { id: "INC-0231", sev: "P2", sevTone: "warn", title: "Replay lag during checkpoint storm", summary: "dr-pgcluster-uae-1 replay lag exceeded 30 s; caused by checkpoint spike under bulk load.", opened: "May 14", duration: "38 m", rca: "signed", rcaTone: "ok", status: "closed", tone: "ok" },
+        { id: "INC-0244", sev: "P3", sevTone: "info", title: "PgBouncer pool saturation on orders_db", summary: "cl_waiting > 0 for 22 min at 14:00 peak; pool resized.", opened: "Jun 02", duration: "26 m", rca: "signed", rcaTone: "ok", status: "closed", tone: "ok" },
+        { id: "INC-0255", sev: "P1", sevTone: "danger", title: "Automatic failover — node eviction", summary: "kubelet evicted leader pod; Patroni promoted prod-pgcluster-uae-02 in 12.1 s.", opened: "Apr 22", duration: "1 h 04 m", rca: "signed", rcaTone: "ok", status: "closed", tone: "ok" },
+        { id: "INC-0261", sev: "P2", sevTone: "warn", title: "Commit latency regression", summary: "p95 26.8 ms; correlated to checkpoint frequency — mitigation pending (CHG-2292).", opened: "Jul 23", duration: "open", rca: "draft", rcaTone: "warn", status: "open", tone: "warn" },
+        { id: "INC-0219", sev: "P3", sevTone: "info", title: "WAL retention overflow on logical slot", summary: "Inactive subscriber retained 12 GiB WAL; slot dropped.", opened: "Mar 08", duration: "52 m", rca: "signed", rcaTone: "ok", status: "closed", tone: "ok" }
+      ],
+      matrixRows: [
+        { cluster: "prod-pgcluster-uae", ha: { v: "3-node", tone: "ok" }, backups: { v: "RPO 40s", tone: "ok" }, security: { v: "84%", tone: "warn" }, perf: { v: "1 alert", tone: "warn" }, capacity: { v: "60%", tone: "ok" }, version: "16.4" },
+        { cluster: "dr-pgcluster-uae", ha: { v: "2-node", tone: "ok" }, backups: { v: "standby", tone: "ok" }, security: { v: "90%", tone: "ok" }, perf: { v: "gated", tone: "muted" }, capacity: { v: "60%", tone: "ok" }, version: "16.4" }
+      ],
+      versionRows: [
+        { cluster: "prod-pgcluster-uae", cur: "16.4", target: "16.5", behind: "1 minor", ext: "14/14 ready", extTone: "ok", blocker: "none — change window Sat", tone: "warn", status: "upgrade available" },
+        { cluster: "dr-pgcluster-uae", cur: "16.4", target: "16.5", behind: "1 minor", ext: "14/14 ready", extTone: "ok", blocker: "follows prod", tone: "muted", status: "gated" }
+      ],
+      extRows: [
+        { name: "pgaudit", installed: "16.0", compat: "16.5", tone: "ok", status: "ready" },
+        { name: "pg_stat_statements", installed: "1.10", compat: "1.10", tone: "ok", status: "ready" },
+        { name: "postgis", installed: "3.4", compat: "3.4", tone: "ok", status: "ready" },
+        { name: "pgvector", installed: "0.7.0", compat: "0.7.0", tone: "ok", status: "ready" },
+        { name: "pg_repack", installed: "1.5.0", compat: "1.5.1", tone: "ok", status: "ready" }
+      ],
+      exportRows: [
+        { id: "EVP-2201", type: "Compliance (CIS)", when: "Jul 21", size: "4.2 MB", sig: "verified", tone: "ok" },
+        { id: "EVP-2184", type: "Incident RCA (INC-0244)", when: "Jul 14", size: "1.1 MB", sig: "verified", tone: "ok" },
+        { id: "EVP-2150", type: "Access review Q2", when: "Jun 30", size: "820 KB", sig: "verified", tone: "ok" },
+        { id: "EVP-2098", type: "Change evidence (CHG-2211)", when: "Jun 12", size: "640 KB", sig: "verified", tone: "ok" },
+        { id: "EVP-2044", type: "Compliance (PCI)", when: "May 28", size: "3.8 MB", sig: "verified", tone: "ok" }
+      ],
+      runsCount: "24", runsOk: "20", runsRunning: "1", runsFailed: "3",
+      auditCount: "312", auditExec: "44", auditDry: "259", auditBlocked: "9",
+      runRows: [
+        { id: "job-8f21ac", kind: "switchover", target: "prod-pgcluster-uae-01", started: "17:12:04", duration: "8.2 s", by: "Local DBA", dryRun: "no", tone: "ok", status: "succeeded" },
+        { id: "job-8f2044", kind: "backup-full", target: "prod-pgcluster-uae", started: "03:00:00", duration: "6 m 12 s", by: "scheduler", dryRun: "no", tone: "ok", status: "succeeded" },
+        { id: "job-8f1fd9", kind: "reindex", target: "orders.line_item", started: "03:00:00", duration: "22 m", by: "scheduler", dryRun: "no", tone: "ok", status: "succeeded" },
+        { id: "job-8f1f70", kind: "reinit-standby", target: "prod-pgcluster-uae-02", started: "16:38:11", duration: "6 m 12 s", by: "auto", dryRun: "no", tone: "ok", status: "succeeded" },
+        { id: "job-8f1e02", kind: "config-apply", target: "shared_buffers", started: "17:15:00", duration: "—", by: "Local DBA", dryRun: "yes", tone: "info", status: "running" },
+        { id: "job-8f1c9b", kind: "failover-forced", target: "prod-pgcluster-uae-01", started: "14:03:22", duration: "—", by: "auto", dryRun: "no", tone: "danger", status: "aborted" }
+      ],
+      auditRows: [
+        { t: "17:44:12", action: "assistant-ask-alerts", role: "dba", executed: "yes", execTone: "ok", dryRun: "no", detail: "q=which alerts are firing? firing=2" },
+        { t: "17:32:40", action: "config-set", role: "dba", executed: "no", execTone: "warn", dryRun: "yes", detail: "ALTER SYSTEM SET shared_buffers — blocked (SHADOW)" },
+        { t: "17:15:03", action: "change-approve", role: "dba", executed: "yes", execTone: "ok", dryRun: "no", detail: "CHG-2292 shared_buffers=32GB approved" },
+        { t: "16:50:18", action: "reinit-standby", role: "operator", executed: "yes", execTone: "ok", dryRun: "no", detail: "prod-pgcluster-uae-02 reinitialized from primary" },
+        { t: "16:38:11", action: "backup-archive", role: "system", executed: "yes", execTone: "ok", dryRun: "no", detail: "WAL 3/4A2F18C0 archived (pgBackRest)" },
+        { t: "14:03:22", action: "failover", role: "system", executed: "yes", execTone: "ok", dryRun: "no", detail: "leader lease lost — promoted prod-pgcluster-uae-01" },
+        { t: "13:40:55", action: "token-create", role: "admin", executed: "yes", execTone: "ok", dryRun: "no", detail: "issued token 'ci-readonly' scopes=read" }
+      ],
+      tokenRows: [
+        { id: "a1b2c3d4e5f6", name: "ci-readonly", created: "2026-07-14T09:12:00Z", last4: "7f2a", scopes: "read" },
+        { id: "9f8e7d6c5b4a", name: "grafana-scrape", created: "2026-06-30T22:04:00Z", last4: "c1d0", scopes: "read" }
+      ],
+      tenantRows: [
+        { id: "uae", name: "UAE", clusters: "prod-pgcluster-uae", role: "owner", tone: "ok" }
+      ],
+      runbookRows: [
+        { id: "failover", tone: "info", title: "Patroni failover / switchover", summary: "Promote a standby and re-point endpoints." },
+        { id: "backup-restore", tone: "info", title: "pgBackRest restore / PITR", summary: "Restore to a point in time from the repo." },
+        { id: "scale", tone: "info", title: "Scale replicas / resources", summary: "Adjust PostgresCluster spec via guarded jobs." }
+      ],
+      laCatRows: [
+        { category: "connection", component: "postgres", count: "3,204", trend: "steady", tone: "muted" },
+        { category: "checkpoint", component: "postgres", count: "1,180", trend: "steady", tone: "muted" },
+        { category: "authentication", component: "postgres", count: "218", trend: "up", tone: "warn" },
+        { category: "replication", component: "patroni", count: "96", trend: "down", tone: "ok" },
+        { category: "autovacuum", component: "postgres", count: "742", trend: "steady", tone: "muted" }
+      ],
+      laSigRows: [
+        { level: "error", tone: "danger", signature: "FATAL: password authentication failed for user \"<user>\"", component: "postgres", count: "142", first: "13:02", last: "17:41" },
+        { level: "error", tone: "danger", signature: "could not connect to server: Connection timed out", component: "pgbouncer", count: "38", first: "14:20", last: "17:10" },
+        { level: "warn", tone: "warn", signature: "checkpoints are occurring too frequently (<n> seconds apart)", component: "postgres", count: "26", first: "12:40", last: "16:58" },
+        { level: "warn", tone: "warn", signature: "terminating connection due to conflict with recovery", component: "postgres", count: "14", first: "15:11", last: "16:44" },
+        { level: "info", tone: "info", signature: "automatic vacuum of table \"<rel>\": index scans: <n>", component: "postgres", count: "742", first: "12:00", last: "17:44" },
+        { level: "info", tone: "info", signature: "restartpoint complete: wrote <n> buffers", component: "postgres", count: "180", first: "12:00", last: "17:40" }
+      ],
+      laFindingRows: [
+        { sev: "high", tone: "warn", title: "Authentication failure spike on reporting role", detail: "142 FATAL auth failures from 10.20.12.41 correlate with md5→SCRAM migration window; likely stale credential." },
+        { sev: "medium", tone: "info", title: "Checkpoint frequency above target", detail: "26 'checkpoints too frequent' warnings — consider raising max_wal_size (currently pending in change calendar)." },
+        { sev: "low", tone: "muted", title: "Recovery conflicts on read replica", detail: "14 recovery-conflict cancellations on prod-pgcluster-uae-02; raise max_standby_streaming_delay for long analytics reads." }
+      ],
+      profileRows: [
+        { label: "Name", value: "Local DBA" },
+        { label: "Username", value: "dba" },
+        { label: "Email", value: "dba@local" },
+        { label: "Role", value: "platform-admin" },
+        { label: "Tenant", value: "uae" }
+      ],
+      readyDomainRows: [
+        { name: "Availability & HA", score: "98%", tone: "ok", sub: "Patroni healthy · sync standby present" },
+        { name: "Backups & DR", score: "100%", tone: "ok", sub: "RPO 40 s · nightly restore verified" },
+        { name: "Security", score: "84%", tone: "warn", sub: "TLS cert expiring · md5 roles pending" },
+        { name: "Performance", score: "92%", tone: "ok", sub: "no active regressions · 1 index advice" },
+        { name: "Capacity", score: "90%", tone: "ok", sub: "storage 60% · 142 d to trigger" },
+        { name: "Observability", score: "100%", tone: "ok", sub: "6/6 collectors on time" }
+      ],
+      actionRows: [
+        { sev: "high", tone: "warn", title: "Rotate prod-pgcluster-uae TLS serving certificate", sub: "expires in 18 days · manual issuer", due: "today" },
+        { sev: "medium", tone: "info", title: "Migrate 4 reporting roles off md5", sub: "SCRAM verifier rollout", due: "Jul 26" },
+        { sev: "low", tone: "muted", title: "Review unused index idx_payments_legacy_ref", sub: "2.1 GiB reclaimable", due: "Aug 01" }
+      ],
+      inboxRows: [
+        { pri: "critical", tone: "danger", type: "alert", title: "Commit latency high on prod-pgcluster-uae", summary: "p95 26.8 ms vs 12 ms baseline · anomaly 4.2σ", source: "alert:CommitLatencyHigh", assignee: "Local DBA", age: "6 m", status: "investigating", statusTone: "warn" },
+        { pri: "critical", tone: "danger", type: "approval", title: "Blue/green cutover approval — prod-pgcluster-uae 17.0", summary: "Awaiting DBA sign-off · apply lag 420 ms", source: "lifecycle", assignee: "unassigned", age: "18 m", status: "pending", statusTone: "warn" },
+        { pri: "high", tone: "warn", type: "recommendation", title: "Missing index on stock(warehouse_id, qty)", summary: "AI DBA · removes 148k-row seq scan", source: "ai_advisor", assignee: "Local DBA", age: "42 m", status: "acknowledged", statusTone: "muted" },
+        { pri: "high", tone: "warn", type: "alert", title: "Replication slot retained WAL 8.1 GiB", summary: "analytics_pub slot bloat", source: "alert:SlotBloat", assignee: "Local DBA", age: "1 h", status: "investigating", statusTone: "warn" },
+        { pri: "medium", tone: "info", type: "approval", title: "Apply shared_buffers = 32GB", summary: "Requires restart · change window Sat 02:00", source: "config", assignee: "unassigned", age: "2 h", status: "pending", statusTone: "warn" },
+        { pri: "low", tone: "muted", type: "recommendation", title: "Drop unused idx_orders_status_old", summary: "12 scans in 90 d · 640 MiB", source: "advisor", assignee: "unassigned", age: "5 h", status: "new", statusTone: "info" }
+      ],
+      changeRows: [
+        { window: "Sat Jul 26 02:00", title: "Minor upgrade 16.4 → 16.5", id: "CHG-2291", cluster: "prod-pgcluster-uae", type: "upgrade", risk: "medium", riskTone: "warn", owner: "Local DBA", tone: "ok", status: "approved" },
+        { window: "Sat Jul 26 03:00", title: "Apply shared_buffers = 32GB", id: "CHG-2292", cluster: "prod-pgcluster-uae", type: "config", risk: "medium", riskTone: "warn", owner: "Local DBA", tone: "ok", status: "approved" },
+        { window: "Wed Jul 30 22:00", title: "Blue/green upgrade to 17.0", id: "CHG-2288", cluster: "prod-pgcluster-uae", type: "upgrade", risk: "high", riskTone: "danger", owner: "Local DBA", tone: "warn", status: "in freeze" },
+        { window: "Fri Aug 01 01:00", title: "Add read replica me-central-c", id: "CHG-2301", cluster: "prod-pgcluster-uae", type: "scaling", risk: "low", riskTone: "muted", owner: "SRE", tone: "info", status: "submitted" },
+        { window: "Sat Aug 02 02:00", title: "WAL archive key rotation", id: "CHG-2304", cluster: "prod-pgcluster-uae", type: "security", risk: "low", riskTone: "muted", owner: "Sec", tone: "info", status: "submitted" }
+      ],
+      maintRows: [
+        { job: "Vacuum analyze (heavy tables)", schedule: "daily 02:00", target: "prod-pgcluster-uae", last: "today 02:00", dur: "8 m 20 s", next: "tomorrow 02:00", tone: "ok", status: "succeeded" },
+        { job: "Reindex bloated indexes", schedule: "weekly Sun 03:00", target: "prod-pgcluster-uae", last: "Jul 20 03:00", dur: "22 m", next: "Jul 27 03:00", tone: "ok", status: "succeeded" },
+        { job: "Statistics refresh", schedule: "hourly", target: "all", last: "17:00", dur: "40 s", next: "18:00", tone: "ok", status: "succeeded" },
+        { job: "Backup verification (restore)", schedule: "nightly 03:00", target: "prod-pgcluster-uae", last: "today 03:00", dur: "6 m 12 s", next: "tomorrow 03:00", tone: "ok", status: "succeeded" },
+        { job: "Log rotation & archive", schedule: "daily 00:00", target: "all", last: "today 00:00", dur: "1 m 05 s", next: "tomorrow 00:00", tone: "ok", status: "succeeded" },
+        { job: "Partition maintenance", schedule: "daily 01:00", target: "tps schema", last: "today 01:00", dur: "3 m 40 s", next: "tomorrow 01:00", tone: "ok", status: "succeeded" }
+      ],
+      ruleRows: [
+        { name: "ReplicationLagCritical", cond: "replication_lag_bytes > 50 MB", for: "2m", sev: "critical", sevTone: "danger", route: "pagerduty · #db-oncall", state: "firing", tone: "danger" },
+        { name: "CommitLatencyHigh", cond: "commit_latency_ms > 20", for: "5m", sev: "critical", sevTone: "danger", route: "pagerduty · #db-oncall", state: "firing", tone: "danger" },
+        { name: "ConnectionsNearLimit", cond: "connections_used_pct > 85", for: "5m", sev: "warning", sevTone: "warn", route: "slack · #db-alerts", state: "ok", tone: "ok" },
+        { name: "DiskPressureWarning", cond: "disk_used_pct > 80", for: "10m", sev: "warning", sevTone: "warn", route: "slack · #db-alerts", state: "ok", tone: "ok" },
+        { name: "SlotBloat", cond: "slot_retained_wal_bytes > 4 GB", for: "15m", sev: "warning", sevTone: "warn", route: "slack · #db-alerts", state: "muted", tone: "muted" },
+        { name: "CheckpointTimeHigh", cond: "checkpoint_write_time_ms > 5000", for: "10m", sev: "info", sevTone: "info", route: "email · dba-team", state: "ok", tone: "ok" }
+      ],
+      componentRows: [
+        { name: "Console API", ver: "v2.14.0", latency: "42 ms", uptime: "99.99%", tone: "ok", status: "healthy" },
+        { name: "Collector service", ver: "v2.14.0", latency: "—", uptime: "99.98%", tone: "ok", status: "healthy" },
+        { name: "etcd (DCS)", ver: "3.5.14", latency: "3 ms", uptime: "100%", tone: "ok", status: "quorum 3/3" },
+        { name: "PGO operator", ver: "5.6.0", latency: "—", uptime: "99.97%", tone: "ok", status: "reconciling" },
+        { name: "Alertmanager", ver: "0.27.0", latency: "12 ms", uptime: "99.99%", tone: "ok", status: "healthy" },
+        { name: "AI gateway", ver: "v1.8.2", latency: "310 ms", uptime: "99.9%", tone: "ok", status: "healthy" }
+      ],
+      quotaRows: [
+        { resource: "CPU (requests)", ns: "prod-pgcluster-uae", used: "72", limit: "96", pct: "75%", tone: "ok" },
+        { resource: "Memory (requests)", ns: "prod-pgcluster-uae", used: "312 Gi", limit: "384 Gi", pct: "81%", tone: "warn" },
+        { resource: "Storage (PVC)", ns: "prod-pgcluster-uae", used: "2.4 Ti", limit: "4.0 Ti", pct: "60%", tone: "ok" },
+        { resource: "DB connections", ns: "prod-pgcluster-uae", used: "412", limit: "500", pct: "82%", tone: "warn" },
+        { resource: "Pods", ns: "prod-pgcluster-uae", used: "14", limit: "30", pct: "47%", tone: "ok" },
+        { resource: "Storage (PVC)", ns: "prod-pgcluster-uae", used: "3.3 Ti", limit: "4.0 Ti", pct: "83%", tone: "warn" }
+      ],
+      activityRows: [
+        { t: "17:44", kind: "alert", tone: "danger", title: "CommitLatencyHigh fired on prod-pgcluster-uae", sub: "p95 26.8 ms · routed to #db-oncall", actor: "alertmanager" },
+        { t: "17:40", kind: "query", tone: "info", title: "SQL Workbench read query executed", sub: "reporting.daily_txn_v · 12,400 rows", actor: "bi_reader" },
+        { t: "17:32", kind: "blocked", tone: "warn", title: "Mutation blocked in SHADOW mode", sub: "attempted ALTER SYSTEM SET shared_buffers", actor: "Local DBA" },
+        { t: "17:28", kind: "agent", tone: "info", title: "AI DBA agent produced recommendation", sub: "missing index on stock(warehouse_id, qty)", actor: "ai_agent" },
+        { t: "17:15", kind: "config", tone: "muted", title: "Change CHG-2292 approved", sub: "shared_buffers = 32GB · Sat 03:00 window", actor: "Local DBA" },
+        { t: "17:02", kind: "collector", tone: "ok", title: "Collector run completed", sub: "48 checks · 0 findings · 1,150 ms", actor: "collector" },
+        { t: "16:50", kind: "ha", tone: "info", title: "Reinit standby prod-pgcluster-uae-02 completed", sub: "6 m 12 s · streaming resumed", actor: "auto" },
+        { t: "16:38", kind: "backup", tone: "ok", title: "WAL segment archived", sub: "3/4A2F18C0 · pgBackRest", actor: "scheduler" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { readiness: 1, inbox: 1, calendar: 1, maintenance: 1, alerts: 1, health: 1, quotas: 1, activity: 1, runs: 1, audit: 1, tokens: 1, tenants: 1, notifications: 1, help: 1, loganalytics: 1, settings: 1, maintfeed: 1, tags: 1, incidents: 1, estatematrix: 1, versionready: 1, evidenceexport: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      legend: opts.legend, grid: { left: opts.left || 130, right: 62, top: opts.legend ? 30 : 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, max: opts.max },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: opts.series || [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { readiness: null, inbox: null, calendar: null, maintenance: null, alerts: null, health: "op-health-api", quotas: "op-quota-usage", activity: null, loganalytics: "op-la-volume" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "health") {
+      var t = this.times(24, 60);
+      this.mk("op-health-api", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: t, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 3 } },
+        yAxis: { type: "value", name: "ms", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "p50", type: "line", smooth: true, showSymbol: false, data: t.map(function () { return Math.round(18 + Math.random() * 6); }), lineStyle: { width: 2, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" } },
+          { name: "p95", type: "line", smooth: true, showSymbol: false, data: t.map(function () { return Math.round(38 + Math.random() * 12); }), lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.08, color: "#7c3aed" } }
+        ]
+      }));
+    } else if (tab === "loganalytics") {
+      var t = this.times(24, 15);
+      var mk = function (base, jit) { return t.map(function () { return Math.round(base + Math.random() * jit); }); };
+      this.mk("op-la-volume", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: t, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 7 } },
+        yAxis: { type: "value", name: "lines", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "info", type: "line", stack: "l", areaStyle: { opacity: 0.8 }, showSymbol: false, smooth: true, data: mk(1200, 400), lineStyle: { width: 0 }, itemStyle: { color: "#17a2b8" } },
+          { name: "warn", type: "line", stack: "l", areaStyle: { opacity: 0.85 }, showSymbol: false, smooth: true, data: mk(60, 40), lineStyle: { width: 0 }, itemStyle: { color: "#f59e0b" } },
+          { name: "error", type: "line", stack: "l", areaStyle: { opacity: 0.9 }, showSymbol: false, smooth: true, data: mk(12, 30), lineStyle: { width: 0 }, itemStyle: { color: "#dc3545" } }
+        ]
+      }));
+    } else if (tab === "quotas") {
+      this.hbar("op-quota-usage", ["CPU", "Memory", "Storage", "Connections", "Pods"], null,
+        { left: 90, legend: { top: 0, icon: "circle", itemWidth: 8 }, max: 100, fmt: function (v) { return v + "%"; },
+          series: [
+            { name: "used %", type: "bar", data: [
+              { value: 75, itemStyle: { color: "#7c3aed" } }, { value: 81, itemStyle: { color: "#f59e0b" } }, { value: 60, itemStyle: { color: "#107c10" } }, { value: 82, itemStyle: { color: "#f59e0b" } }, { value: 47, itemStyle: { color: "#107c10" } }
+            ], barWidth: 14, itemStyle: { borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: function (p) { return p.value + "%"; } },
+              markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "80%", fontSize: 10, color: "#dc3545" }, data: [{ xAxis: 80 }] } }
+          ] });
+    }
+  }
+}
+</script>
+</body>
+</html>

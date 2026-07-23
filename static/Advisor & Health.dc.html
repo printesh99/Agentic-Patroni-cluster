@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes ahPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="ah-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Advisor &amp; Health</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:ahPulse 2s infinite"></span>manual refresh · last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAdvisor }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Advisor" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;width:150px"><label>Container RAM (GiB)</label><input type="number" value="128"></div>
+            <div class="field" style="margin:0;width:130px"><label>CPU cores</label><input type="number" value="32"></div>
+            <button class="btn sm primary">Recompute</button>
+            <span class="muted txt-xs">Memory / parallelism sized for 128 GiB · 32 cores</span>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>pg_settings + tuning rules</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">AI recommendations</div><div class="value">14</div><div class="sub">9 open</div></div>
+          <div class="kpi orange"><div class="label">Parameter findings</div><div class="value">6</div><div class="sub">3 advice · 3 ok</div></div>
+          <div class="kpi red"><div class="label">Unused indexes</div><div class="value">7</div><div class="sub">3.2 GiB reclaimable</div></div>
+          <div class="kpi teal"><div class="label">Bloated tables</div><div class="value">5</div><div class="sub">by dead-tuple %</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">AI DBA recommendations <span class="meta">live PostgreSQL + rule engine</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Category</th><th>Recommendation</th><th>Object</th><th>Action</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ aiRecRows }}" as="r" hint-placeholder-count="5">
+                  <tr><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.sev }}</span></td><td class="txt-xs muted">{{ r.cat }}</td><td style="min-width:280px"><strong class="txt-xs">{{ r.title }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:520px">{{ r.summary }}</div></td><td class="mono txt-xs">{{ r.obj }}</td><td class="mono txt-xs" style="white-space:normal;max-width:300px">{{ r.action }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Parameter recommendations <span class="meta">pg_settings + tuning rules</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Parameter</th><th>Category</th><th>Current</th><th>Recommended</th><th>Apply</th><th>Status</th><th>Rationale</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ paramRows }}" as="p" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ p.name }}</td><td class="txt-xs muted">{{ p.cat }}</td><td class="mono txt-xs">{{ p.cur }}</td><td class="mono txt-xs"><strong>{{ p.rec }}</strong></td><td><span class="pill {{ p.applyTone }}" style="white-space:nowrap"><span class="dot"></span>{{ p.apply }}</span></td><td><span class="pill {{ p.statusTone }}" style="white-space:nowrap"><span class="dot"></span>{{ p.status }}</span></td><td class="txt-xs" style="white-space:normal;max-width:340px">{{ p.rationale }}</td><td class="num"><sc-if value="{{ p.canValidate }}" hint-placeholder-val="{{ false }}"><button class="btn ghost sm">Validate</button></sc-if></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Unused / large indexes <span class="meta">pg_stat_user_indexes</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Index</th><th>Table</th><th class="num">Scans</th><th class="num">Size</th><th>Recommendation</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ unusedRows }}" as="u" hint-placeholder-count="4">
+                    <tr><td class="mono txt-xs">{{ u.idx }}</td><td class="mono txt-xs">{{ u.tbl }}</td><td class="num txt-xs">{{ u.scans }}</td><td class="num txt-xs">{{ u.size }}</td><td><span class="pill {{ u.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ u.rec }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Bloated tables <span class="meta">latest object-metrics snapshot</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Table</th><th class="num">Dead %</th><th class="num">Dead tuples</th><th class="num">Size</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ bloatRows }}" as="b" hint-placeholder-count="5">
+                    <tr><td class="mono txt-xs">{{ b.tbl }}</td><td class="num"><span class="pill {{ b.tone }}" style="white-space:nowrap">{{ b.pct }}</span></td><td class="num txt-xs">{{ b.dead }}</td><td class="num txt-xs">{{ b.size }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCloud }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cloud Advisor" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Cloud findings</div><div class="value">18</div><div class="sub">across 4 pillars</div></div>
+          <div class="kpi green"><div class="label">Est. monthly savings</div><div class="value">$4.2k</div><div class="sub">if all applied</div></div>
+          <div class="kpi orange"><div class="label">Reliability gaps</div><div class="value">3</div><div class="sub">HA / backup</div></div>
+          <div class="kpi red"><div class="label">Security items</div><div class="value">2</div><div class="sub">high priority</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Findings by pillar <span class="meta">Well-Architected</span></div><div class="bd"><div id="ah-cloud-pillar" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Score trend <span class="meta">30 d</span></div><div class="bd"><div id="ah-cloud-trend" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Cloud advisor recommendations <span class="meta">OpenShift + PGO + storage class</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Pillar</th><th>Recommendation</th><th>Resource</th><th class="num">Impact</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ cloudRows }}" as="c" hint-placeholder-count="5">
+                  <tr><td><span class="pill {{ c.tone }}" style="white-space:nowrap">{{ c.pillar }}</span></td><td style="min-width:280px"><strong class="txt-xs">{{ c.title }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:520px">{{ c.summary }}</div></td><td class="mono txt-xs">{{ c.res }}</td><td class="num mono txt-xs">{{ c.impact }}</td><td><span class="pill {{ c.statusTone }}" style="white-space:nowrap"><span class="dot"></span>{{ c.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showOptimizer }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cost and Capacity Optimizer" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Right-size savings</div><div class="value">−$3.1k</div><div class="sub">per month</div></div>
+          <div class="kpi orange"><div class="label">Over-provisioned</div><div class="value">2</div><div class="sub">clusters</div></div>
+          <div class="kpi navy"><div class="label">CPU headroom</div><div class="value">44%</div><div class="sub">p95 utilization</div></div>
+          <div class="kpi teal"><div class="label">Memory headroom</div><div class="value">38%</div><div class="sub">p95 utilization</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Utilization vs allocation <span class="meta">per cluster</span></div><div class="bd"><div id="ah-opt-util" style="height:260px"></div></div></div>
+          <div class="card"><div class="hd">Cost breakdown <span class="meta">compute · storage · backup</span></div><div class="bd"><div id="ah-opt-cost" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Right-sizing proposals <span class="meta">based on 30 d p95 · applied via lifecycle scaling</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Cluster</th><th>Current</th><th>Proposed</th><th class="num">CPU p95</th><th class="num">Mem p95</th><th class="num">Monthly Δ</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ optRows }}" as="o" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ o.cluster }}</td><td class="mono txt-xs">{{ o.cur }}</td><td class="mono txt-xs"><strong>{{ o.proposed }}</strong></td><td class="num mono txt-xs">{{ o.cpu }}</td><td class="num mono txt-xs">{{ o.mem }}</td><td class="num mono txt-xs" style="color:{{ o.deltaColor }}">{{ o.delta }}</td><td><span class="pill {{ o.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ o.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCapacity }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Capacity Planning" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:170px"><label>Resource</label><select><option>Storage</option><option>Connections</option><option>TPS</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Horizon</label><select><option>90 days</option><option selected="selected">180 days</option><option>365 days</option></select></div>
+            <div style="flex:1"></div>
+            <span class="pill warn"><span class="dot"></span>storage breach forecast · ~142 d</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Storage used</div><div class="value">2.4 TiB</div><div class="sub">of 4.0 TiB</div></div>
+          <div class="kpi green"><div class="label">Growth rate</div><div class="value">11 GiB/d</div><div class="sub">30 d trend</div></div>
+          <div class="kpi orange"><div class="label">Days to 85%</div><div class="value">142</div><div class="sub">at current rate</div></div>
+          <div class="kpi teal"><div class="label">Peak connections</div><div class="value">412</div><div class="sub">of 500 max</div></div>
+        </div>
+        <div class="card"><div class="hd">Storage forecast <span class="meta">actual + linear projection · autoscale threshold at 85%</span></div><div class="bd"><div id="ah-cap-forecast" style="height:300px"></div></div></div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Connections trend <span class="meta">30 d · peak vs max</span></div><div class="bd"><div id="ah-cap-conn" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">TPS capacity <span class="meta">sustained vs headroom</span></div><div class="bd"><div id="ah-cap-tps" style="height:240px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAnomalies }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Anomaly Detection" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi red"><div class="label">Open anomalies</div><div class="value">3</div><div class="sub">last 24h</div></div>
+          <div class="kpi orange"><div class="label">Metrics watched</div><div class="value">42</div><div class="sub">baseline models</div></div>
+          <div class="kpi navy"><div class="label">Detections (7d)</div><div class="value">17</div><div class="sub">11 auto-resolved</div></div>
+          <div class="kpi green"><div class="label">False-positive rate</div><div class="value">6%</div><div class="sub">DBA-labelled</div></div>
+        </div>
+        <div class="card"><div class="hd">Detected anomaly — commit latency <span class="meta">z-score vs seasonal baseline</span></div><div class="bd"><div id="ah-anom-band" style="height:280px"></div></div></div>
+        <div class="card">
+          <div class="hd">Anomaly log <span class="meta">newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Detected</th><th>Metric</th><th>Cluster</th><th class="num">Deviation</th><th>Severity</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ anomRows }}" as="a" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ a.t }}</td><td class="txt-xs">{{ a.metric }}</td><td class="mono txt-xs">{{ a.cluster }}</td><td class="num mono txt-xs">{{ a.dev }}</td><td><span class="pill {{ a.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.sev }}</span></td><td><span class="pill {{ a.statusTone }}" style="white-space:nowrap">{{ a.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showShowback }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Cost Showback and Budgets" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">MTD spend</div><div class="value">$18.4k</div><div class="sub">of $24k budget</div></div>
+          <div class="kpi green"><div class="label">Forecast EOM</div><div class="value">$23.1k</div><div class="sub">under budget</div></div>
+          <div class="kpi orange"><div class="label">Over-budget teams</div><div class="value">1</div><div class="sub">payments</div></div>
+          <div class="kpi teal"><div class="label">Cost / 1M txns</div><div class="value">$0.94</div><div class="sub">−8% MoM</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Spend by team <span class="meta">chargeback tags</span></div><div class="bd"><div id="ah-sb-team" style="height:260px"></div></div></div>
+          <div class="card"><div class="hd">Budget vs actual <span class="meta">MTD · daily</span></div><div class="bd"><div id="ah-sb-budget" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Showback by tag <span class="meta">team · environment · database</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Team</th><th>Environment</th><th class="num">Compute</th><th class="num">Storage</th><th class="num">Backup</th><th class="num">Total</th><th class="num">Budget</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ showbackRows }}" as="s" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ s.team }}</td><td class="txt-xs muted">{{ s.env }}</td><td class="num mono txt-xs">{{ s.compute }}</td><td class="num mono txt-xs">{{ s.storage }}</td><td class="num mono txt-xs">{{ s.backup }}</td><td class="num mono txt-xs"><strong>{{ s.total }}</strong></td><td class="num"><span class="pill {{ s.tone }}" style="white-space:nowrap">{{ s.budget }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showResource }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Resource Health" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Patroni events</div><div class="value">9</div><div class="sub">DCS /history</div></div>
+          <div class="kpi teal"><div class="label">Console HA jobs</div><div class="value">5</div><div class="sub">switchover · failover · restart</div></div>
+          <div class="kpi green"><div class="label">Current timeline</div><div class="value">TL 7</div><div class="sub">latest leader prod-pgcluster-uae-00</div></div>
+          <div class="kpi orange"><div class="label">Last failover</div><div class="value">6 d</div><div class="sub">ago · planned</div></div>
+        </div>
+        <div class="section-h" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:12px;color:#8a8fa3">Resource health &amp; HA timeline</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Patroni failover / switchover history <span class="meta">DCS /history</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ patroniRows }}" as="p" hint-placeholder-count="4">
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ p.tone }}" style="white-space:nowrap">{{ p.title }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ p.label }}</div><div class="muted txt-xs">{{ p.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Console HA jobs <span class="meta">switchover · failover · restart · reinit</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ haJobRows }}" as="j" hint-placeholder-count="4">
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ j.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ j.state }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ j.title }}</div><div class="muted txt-xs">{{ j.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">CPU saturation <span class="meta">per node · p95</span></div><div class="bd"><div id="ah-res-cpu" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Memory pressure <span class="meta">per node</span></div><div class="bd"><div id="ah-res-mem" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Disk I/O wait <span class="meta">per node</span></div><div class="bd"><div id="ah-res-io" style="height:220px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showCollector }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Collector Health" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:150px"><label>Window</label><select><option>Last hour</option><option selected="selected">Last 24 hours</option><option>Last 7 days</option><option>Last 30 days</option></select></div>
+            <div class="field" style="margin:0;min-width:160px"><label>Finding severity</label><select><option selected="selected">All severities</option><option>Critical</option><option>Warning</option><option>Info</option></select></div>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>collector-history</span>
+          </div>
+        </div>
+        <div class="section-h" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:12px;color:#8a8fa3">Hourly collector health</div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Runs in window</div><div class="value">24</div><div class="sub">latest 06:00</div></div>
+          <div class="kpi green"><div class="label">OK runs</div><div class="value">21</div><div class="sub">read-only checks passed</div></div>
+          <div class="kpi orange"><div class="label">Warn / failed</div><div class="value">3</div><div class="sub">2 warn · 1 critical</div></div>
+          <div class="kpi red"><div class="label">Open findings</div><div class="value">4</div><div class="sub">1 critical · 3 warning</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Run timeline <span class="meta">prod-pgcluster-uae · 24h</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Collected</th><th>Status</th><th>Mode</th><th class="num">Checks</th><th class="num">Duration</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ runRows }}" as="r" hint-placeholder-count="6">
+                    <tr><td class="mono txt-xs">{{ r.t }}</td><td><span class="pill {{ r.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.status }}</span></td><td class="txt-xs">{{ r.mode }}</td><td class="num mono txt-xs">{{ r.checks }}</td><td class="num mono txt-xs">{{ r.dur }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Open findings <span class="meta">deduped by fingerprint</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:0">
+              <sc-for list="{{ findingRows }}" as="f" hint-placeholder-count="4">
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f2f3f7">
+                  <span class="pill {{ f.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ f.sev }}</span>
+                  <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ f.title }}</div><div class="muted txt-xs">{{ f.sub }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Alert bundle requests <span class="meta">critical-alert driven evidence collection · 7d</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Requested</th><th>Alert</th><th>Issue</th><th>Status</th><th>Bundle</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ bundleRows }}" as="b" hint-placeholder-count="3">
+                  <tr><td class="mono txt-xs">{{ b.t }}</td><td class="txt-xs">{{ b.alert }}</td><td class="mono txt-xs">{{ b.issue }}</td><td><span class="pill {{ b.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ b.status }}</span></td><td class="mono txt-xs">{{ b.bundle }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /advisor, /perf, /replication/history and /api/v1/collector payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "advisor", group: "advisor", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "ah") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      advisor: ["Advisor", "AI DBA + parameter recommendations, unused indexes and bloat · guarded validate/apply"],
+      cloud: ["Cloud Advisor", "Well-Architected findings across OpenShift, PGO and storage class"],
+      optimizer: ["Cost / Capacity Optimizer", "Right-size compute from 30 d p95 utilization · applied via lifecycle scaling"],
+      capacity: ["Capacity Planning", "Storage, connection and TPS forecasting against autoscale thresholds"],
+      anomalies: ["Anomaly Detection", "Seasonal-baseline z-score detection across 42 watched metrics"],
+      showback: ["Cost Showback & Budgets", "Chargeback by team, environment and database against budgets"],
+      resource: ["Resource Health", "Patroni failover history, console HA jobs and per-node saturation"],
+      collector: ["Collector Health", "Hourly read-only collector runs, open findings and alert bundles · /api/v1"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "ah" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showAdvisor: tab === "advisor", showCloud: tab === "cloud", showOptimizer: tab === "optimizer", showCapacity: tab === "capacity",
+      showAnomalies: tab === "anomalies", showShowback: tab === "showback", showResource: tab === "resource", showCollector: tab === "collector",
+      aiRecRows: [
+        { sev: "critical", tone: "danger", cat: "index", title: "Missing index on stock(warehouse_id, qty)", summary: "Seq Scan removes 148k rows per call on a 1.2k calls/h statement.", obj: "orders_db.stock", action: "CREATE INDEX CONCURRENTLY …" },
+        { sev: "warning", tone: "warn", cat: "vacuum", title: "posting_events past autovacuum threshold", summary: "24.6% dead tuples; autovacuum lagging behind churn.", obj: "ae_tps_uat.posting_events", action: "VACUUM (ANALYZE) tps.posting_events" },
+        { sev: "warning", tone: "warn", cat: "plan", title: "Plan flip on payments status query", summary: "Generic plan chosen since Jul 17, mean exec time +58%.", obj: "payments_db.payments", action: "Pin custom plan / add stats" },
+        { sev: "info", tone: "info", cat: "config", title: "work_mem below recommended for sort-heavy load", summary: "12% of sorts spilling to disk on reporting queries.", obj: "cluster", action: "SET work_mem = '64MB'" },
+        { sev: "info", tone: "info", cat: "index", title: "Drop unused idx_payments_legacy_ref", summary: "0 scans in 90 days · 2.1 GiB reclaimable.", obj: "payments_db.payments", action: "DROP INDEX CONCURRENTLY …" }
+      ],
+      paramRows: [
+        { name: "shared_buffers", cat: "memory", cur: "8GB", rec: "32GB", apply: "restart", applyTone: "warn", status: "advice", statusTone: "warn", rationale: "25% of 128 GiB container RAM.", canValidate: true },
+        { name: "effective_cache_size", cat: "memory", cur: "24GB", rec: "96GB", apply: "reload", applyTone: "muted", status: "advice", statusTone: "warn", rationale: "75% of container RAM for planner estimates.", canValidate: true },
+        { name: "max_wal_size", cat: "wal", cur: "2GB", rec: "8GB", apply: "reload", applyTone: "muted", status: "advice", statusTone: "warn", rationale: "Reduce checkpoint frequency under write load.", canValidate: true },
+        { name: "work_mem", cat: "memory", cur: "16MB", rec: "64MB", apply: "reload", applyTone: "muted", status: "ok", statusTone: "ok", rationale: "Within range for current parallelism.", canValidate: false },
+        { name: "random_page_cost", cat: "planner", cur: "4.0", rec: "1.1", apply: "reload", applyTone: "muted", status: "ok", statusTone: "ok", rationale: "SSD-backed storage class.", canValidate: false },
+        { name: "autovacuum_vacuum_cost_limit", cat: "autovacuum", cur: "200", rec: "800", apply: "reload", applyTone: "muted", status: "ok", statusTone: "ok", rationale: "Keeps up with churn after last tuning.", canValidate: false }
+      ],
+      unusedRows: [
+        { idx: "idx_payments_legacy_ref", tbl: "payments.payments", scans: "0", size: "2.1 GiB", rec: "review_unused_large", tone: "warn" },
+        { idx: "idx_orders_status_old", tbl: "tps.orders", scans: "12", size: "640 MiB", rec: "review_unused", tone: "muted" },
+        { idx: "idx_audit_actor_btree", tbl: "audit.event_log", scans: "3", size: "410 MiB", rec: "review_unused", tone: "muted" },
+        { idx: "idx_mobile_sessions_ua", tbl: "mobile.sessions", scans: "0", size: "96 MiB", rec: "review_unused", tone: "muted" }
+      ],
+      bloatRows: [
+        { tbl: "tps.posting_events", pct: "24.6%", tone: "danger", dead: "3,640,220", size: "96 GiB" },
+        { tbl: "mobile.push_log", pct: "14.8%", tone: "warn", dead: "412,880", size: "38 GiB" },
+        { tbl: "tps.txn_batch", pct: "12.1%", tone: "warn", dead: "88,410", size: "22 GiB" },
+        { tbl: "crm_slim.cases", pct: "7.2%", tone: "ok", dead: "44,120", size: "41 GiB" },
+        { tbl: "document.ocr_queue", pct: "5.5%", tone: "ok", dead: "2,180", size: "7 GiB" }
+      ],
+      cloudRows: [
+        { pillar: "Cost", tone: "info", title: "Idle read replica off-hours", summary: "prod-pgcluster-uae-02 averages 3% CPU overnight; consider scale-to-zero off-hours.", res: "prod-pgcluster-uae/replica-02", impact: "−$680/mo", status: "open", statusTone: "warn" },
+        { pillar: "Reliability", tone: "warn", title: "Backup retention below policy", summary: "WAL archive retention 3 d vs 7 d policy for prod tier.", res: "prod-pgcluster-uae/pgbackrest", impact: "risk", status: "open", statusTone: "warn" },
+        { pillar: "Security", tone: "danger", title: "TLS cert expiring in 18 days", summary: "prod-pgcluster-uae primary serving cert past 80% of validity.", res: "prod-pgcluster-uae/tls", impact: "high", status: "open", statusTone: "warn" },
+        { pillar: "Performance", tone: "ok", title: "Storage class upgrade available", summary: "gp3 → io2 recommended for WAL volume on write-heavy tier.", res: "prod-pgcluster-uae/wal-pvc", impact: "+IOPS", status: "acknowledged", statusTone: "muted" },
+        { pillar: "Cost", tone: "info", title: "DR cluster gated but provisioned", summary: "dr-pgcluster-uae reserved capacity idle while disabled; confirm before enabling.", res: "dr-pgcluster-uae", impact: "−$310/mo", status: "open", statusTone: "warn" }
+      ],
+      optRows: [
+        { cluster: "prod-pgcluster-uae", cur: "32c / 128Gi", proposed: "32c / 128Gi", cpu: "68%", mem: "71%", delta: "$0", deltaColor: "#5b6b7b", status: "right-sized", tone: "ok" },
+        { cluster: "dr-pgcluster-uae", cur: "16c / 64Gi", proposed: "8c / 32Gi", cpu: "18%", mem: "24%", delta: "−$540", deltaColor: "#107c10", status: "proposed", tone: "info" }
+      ],
+      anomRows: [
+        { t: "17:41", metric: "commit latency (ms)", cluster: "prod-pgcluster-uae", dev: "+4.2σ", sev: "critical", sevTone: "danger", status: "open", statusTone: "warn" },
+        { t: "16:08", metric: "checkpoint write time", cluster: "prod-pgcluster-uae", dev: "+2.8σ", sev: "warning", sevTone: "warn", status: "open", statusTone: "warn" },
+        { t: "14:22", metric: "temp bytes / query", cluster: "prod-pgcluster-uae", dev: "+3.1σ", sev: "warning", sevTone: "warn", status: "open", statusTone: "warn" },
+        { t: "11:50", metric: "deadlocks / min", cluster: "prod-pgcluster-uae", dev: "+2.4σ", sev: "warning", sevTone: "warn", status: "resolved", statusTone: "ok" },
+        { t: "09:14", metric: "connection churn", cluster: "prod-pgcluster-uae", dev: "+2.1σ", sev: "info", sevTone: "info", status: "auto-resolved", statusTone: "muted" }
+      ],
+      showbackRows: [
+        { team: "payments", env: "prod", compute: "$6,240", storage: "$1,820", backup: "$410", total: "$8,470", budget: "over 6%", tone: "danger" },
+        { team: "core-banking", env: "prod", compute: "$4,180", storage: "$2,240", backup: "$520", total: "$6,940", budget: "82%", tone: "ok" },
+        { team: "mobile", env: "prod", compute: "$1,640", storage: "$640", backup: "$120", total: "$2,400", budget: "64%", tone: "ok" },
+        { team: "analytics", env: "prod", compute: "$820", storage: "$1,120", backup: "$80", total: "$2,020", budget: "71%", tone: "ok" },
+        { team: "platform", env: "staging", compute: "$380", storage: "$140", backup: "$40", total: "$560", budget: "38%", tone: "muted" }
+      ],
+      patroniRows: [
+        { title: "TL 7", tone: "info", label: "no failover · steady", sub: "→ prod-pgcluster-uae-00 · 2026-07-15 03:12 UTC" },
+        { title: "TL 6", tone: "info", label: "planned switchover (maintenance)", sub: "→ prod-pgcluster-uae-00 · 2026-07-08 22:40 UTC" },
+        { title: "TL 5", tone: "warn", label: "automatic failover (leader lease lost)", sub: "→ prod-pgcluster-uae-01 · 2026-06-19 14:03 UTC" },
+        { title: "TL 4", tone: "info", label: "planned switchover (minor upgrade)", sub: "→ prod-pgcluster-uae-00 · 2026-05-30 01:20 UTC" }
+      ],
+      haJobRows: [
+        { state: "succeeded", tone: "ok", title: "switchover", sub: "succeeded · 2026-07-08 22:39 UTC" },
+        { state: "succeeded", tone: "ok", title: "restart (rolling)", sub: "succeeded · 2026-07-08 21:55 UTC" },
+        { state: "succeeded", tone: "ok", title: "reinit standby prod-pgcluster-uae-02", sub: "succeeded · 2026-06-20 08:10 UTC" },
+        { state: "failed", tone: "danger", title: "failover (manual, aborted)", sub: "failed · quorum not met · 2026-06-19 14:00 UTC" }
+      ],
+      runRows: [
+        { t: "06:00", status: "ok", tone: "ok", mode: "read-only", checks: "48 / 0", dur: "1,240 ms" },
+        { t: "05:00", status: "ok", tone: "ok", mode: "read-only", checks: "48 / 0", dur: "1,180 ms" },
+        { t: "04:00", status: "warn", tone: "warn", mode: "read-only", checks: "48 / 2", dur: "1,520 ms" },
+        { t: "03:00", status: "ok", tone: "ok", mode: "read-only", checks: "48 / 0", dur: "1,090 ms" },
+        { t: "02:00", status: "critical", tone: "danger", mode: "read-only", checks: "48 / 5", dur: "3,410 ms" },
+        { t: "01:00", status: "ok", tone: "ok", mode: "read-only", checks: "48 / 0", dur: "1,150 ms" }
+      ],
+      findingRows: [
+        { sev: "critical", tone: "danger", title: "Replication slot retained WAL 8.1 GiB", sub: "replication · slot_bloat · last 02:00" },
+        { sev: "warning", tone: "warn", title: "posting_events dead tuples > 20%", sub: "vacuum · table_bloat · last 04:00" },
+        { sev: "warning", tone: "warn", title: "Idle-in-transaction sessions > 20", sub: "sessions · long_idle_tx · last 04:00" },
+        { sev: "info", tone: "info", title: "Analyze backlog on 12 tables", sub: "stats · analyze_lag · last 06:00" }
+      ],
+      bundleRows: [
+        { t: "Jul 20 02:03", alert: "CommitLatencyHigh", issue: "INC-4821", status: "collected", tone: "ok", bundle: "#1204" },
+        { t: "Jul 18 15:44", alert: "ReplicationLagCritical", issue: "INC-4790", status: "collected", tone: "ok", bundle: "#1188" },
+        { t: "Jul 16 09:11", alert: "DiskPressureWarning", issue: "INC-4762", status: "pending", tone: "warn", bundle: "—" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { advisor: 1, cloud: 1, optimizer: 1, capacity: 1, anomalies: 1, showback: 1, resource: 1, collector: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 20, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      legend: opts.legend, grid: { left: opts.left || 130, right: 62, top: opts.legend ? 30 : 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, max: opts.max },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: opts.series || [{ type: "bar", data: data, barWidth: 14, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  times(n, stepMin) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * stepMin * 60e3); out.push(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0")); }
+    return out;
+  }
+  days(n) {
+    var out = [], m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (var i = n - 1; i >= 0; i--) { var d = new Date(Date.now() - i * 864e5); out.push(m[d.getMonth()] + " " + d.getDate()); }
+    return out;
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { cloud: "ah-cloud-pillar", optimizer: "ah-opt-util", capacity: "ah-cap-forecast", anomalies: "ah-anom-band", showback: "ah-sb-team", resource: "ah-res-cpu", collector: null }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab;
+    if (tab === "cloud") {
+      this.hbar("ah-cloud-pillar", ["Cost", "Reliability", "Security", "Performance", "Operational"],
+        [{ value: 6, itemStyle: { color: "#7c3aed" } }, { value: 3, itemStyle: { color: "#f59e0b" } }, { value: 2, itemStyle: { color: "#dc3545" } }, { value: 4, itemStyle: { color: "#17a2b8" } }, { value: 3, itemStyle: { color: "#107c10" } }],
+        { left: 90, labelFmt: "{c}" });
+      var d30 = this.days(30);
+      this.mk("ah-cloud-trend", Object.assign(this.base(), {
+        xAxis: { type: "category", data: d30, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 6 } },
+        yAxis: { type: "value", min: 60, max: 100, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "score", type: "line", smooth: true, showSymbol: false, data: d30.map(function (_, i) { return Math.round(74 + i * 0.4 + Math.random() * 3); }), lineStyle: { width: 2.5, color: "#107c10" }, itemStyle: { color: "#107c10" }, areaStyle: { opacity: 0.1, color: "#107c10" } }]
+      }));
+    } else if (tab === "optimizer") {
+      this.hbar("ah-opt-util", ["prod-pgcluster-uae", "dr-pgcluster-uae"], null,
+        { left: 90, legend: { top: 0, icon: "circle", itemWidth: 8 }, max: 100, fmt: function (v) { return v + "%"; },
+          series: [
+            { name: "CPU p95", type: "bar", data: [68, 18], barWidth: 12, itemStyle: { color: "#7c3aed", borderRadius: [0, 5, 5, 0] } },
+            { name: "Mem p95", type: "bar", data: [71, 24], barWidth: 12, itemStyle: { color: "#17a2b8", borderRadius: [0, 5, 5, 0] } }
+          ] });
+      this.donut("ah-opt-cost", [
+        { name: "Compute", value: 62, itemStyle: { color: "#7c3aed" } },
+        { name: "Storage", value: 28, itemStyle: { color: "#17a2b8" } },
+        { name: "Backup", value: 10, itemStyle: { color: "#f59e0b" } }
+      ], "$18.4k", "MTD");
+    } else if (tab === "capacity") {
+      var fd = this.days(60), proj = [];
+      for (var i = 0; i < 90; i++) { var d = new Date(Date.now() + i * 864e5); proj.push((d.getMonth() + 1) + "/" + d.getDate()); }
+      var actual = fd.map(function (_, i) { return +(1.8 + i * 0.011 + Math.random() * 0.03).toFixed(2); });
+      var last = actual[actual.length - 1];
+      var forecast = fd.map(function () { return null; }).concat(proj.map(function (_, i) { return +(last + (i + 1) * 0.011).toFixed(2); }));
+      this.mk("ah-cap-forecast", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: fd.concat(proj), boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 17 } },
+        yAxis: { type: "value", name: "TiB", max: 4, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "used", type: "line", showSymbol: false, data: actual, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" } },
+          { name: "forecast", type: "line", showSymbol: false, data: forecast, lineStyle: { width: 2, color: "#f59e0b", type: "dashed" }, itemStyle: { color: "#f59e0b" },
+            markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "85% autoscale", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 3.4 }] } }
+        ]
+      }));
+      var c30 = this.days(30);
+      this.mk("ah-cap-conn", Object.assign(this.base(), {
+        xAxis: { type: "category", data: c30, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 6 } },
+        yAxis: { type: "value", max: 500, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "peak conns", type: "line", smooth: true, showSymbol: false, data: c30.map(function (_, i) { return Math.round(360 + i * 1.4 + Math.random() * 20); }), lineStyle: { width: 2, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" }, areaStyle: { opacity: 0.1, color: "#17a2b8" },
+          markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "max 500", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 500 }] } }]
+      }));
+      this.hbar("ah-cap-tps", ["prod-pgcluster-uae", "dr-pgcluster-uae"], null,
+        { left: 90, legend: { top: 0, icon: "circle", itemWidth: 8 }, fmt: function (v) { return v + " tps"; },
+          series: [
+            { name: "sustained", type: "bar", stack: "t", data: [1240, 420], barWidth: 14, itemStyle: { color: "#7c3aed" } },
+            { name: "headroom", type: "bar", stack: "t", data: [760, 1080], barWidth: 14, itemStyle: { color: "#e4e4ec" } }
+          ] });
+    } else if (tab === "anomalies") {
+      var at = this.times(72, 20);
+      var baseline = at.map(function (_, i) { return +(12 + 3 * Math.sin(i / 9)).toFixed(2); });
+      var upper = baseline.map(function (v) { return +(v + 3).toFixed(2); });
+      var lower = baseline.map(function (v) { return +(v - 3).toFixed(2); });
+      var actual = at.map(function (_, i) { return +(baseline[i] + (Math.random() - 0.5) * 2).toFixed(2); });
+      actual[actual.length - 2] = 24.1; actual[actual.length - 1] = 26.8;
+      this.mk("ah-anom-band", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8, data: ["commit latency", "expected band"] },
+        xAxis: { type: "category", data: at, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 11 } },
+        yAxis: { type: "value", name: "ms", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "expected band", type: "line", data: lower, lineStyle: { opacity: 0 }, stack: "band", showSymbol: false, silent: true },
+          { name: "expected band", type: "line", data: upper.map(function (v, i) { return +(v - lower[i]).toFixed(2); }), lineStyle: { opacity: 0 }, areaStyle: { color: "#7c3aed", opacity: 0.12 }, stack: "band", showSymbol: false, silent: true },
+          { name: "commit latency", type: "line", data: actual, showSymbol: false, lineStyle: { width: 2, color: "#dc3545" }, itemStyle: { color: "#dc3545" },
+            markPoint: { symbol: "pin", symbolSize: 42, data: [{ coord: [at.length - 1, 26.8], value: "4.2σ" }], itemStyle: { color: "#dc3545" }, label: { fontSize: 9, color: "#fff" } } }
+        ]
+      }));
+    } else if (tab === "showback") {
+      this.hbar("ah-sb-team", ["payments", "core-banking", "mobile", "analytics", "platform"],
+        [{ value: 8470, itemStyle: { color: "#dc3545" } }, { value: 6940, itemStyle: { color: "#7c3aed" } }, { value: 2400, itemStyle: { color: "#17a2b8" } }, { value: 2020, itemStyle: { color: "#f59e0b" } }, { value: 560, itemStyle: { color: "#107c10" } }],
+        { left: 100, fmt: function (v) { return "$" + v.toLocaleString(); }, labelFmt: function (p) { return "$" + p.value.toLocaleString(); } });
+      var bd = this.days(20), budgetLine = bd.map(function (_, i) { return Math.round(1200 * (i + 1)); });
+      var actualLine = bd.map(function (_, i) { return Math.round(1180 * (i + 1) + Math.random() * 300); });
+      this.mk("ah-sb-budget", Object.assign(this.base(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: bd, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 4 } },
+        yAxis: { type: "value", name: "$", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [
+          { name: "budget", type: "line", showSymbol: false, data: budgetLine, lineStyle: { width: 2, color: "#8a8fa3", type: "dashed" }, itemStyle: { color: "#8a8fa3" } },
+          { name: "actual", type: "line", showSymbol: false, data: actualLine, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.1, color: "#7c3aed" } }
+        ]
+      }));
+    } else if (tab === "resource") {
+      var mkGauge = function (id, val, color) {
+        self.mk(id, {
+          series: [{ type: "gauge", startAngle: 210, endAngle: -30, min: 0, max: 100, radius: "92%", center: ["50%", "58%"],
+            progress: { show: true, width: 14, itemStyle: { color: color } },
+            axisLine: { lineStyle: { width: 14, color: [[1, "#eef0f5"]] } },
+            axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false },
+            anchor: { show: false }, title: { show: false },
+            detail: { valueAnimation: true, offsetCenter: [0, 0], fontSize: 24, fontWeight: 700, fontFamily: "Times New Roman", color: "#212529", formatter: "{value}%" },
+            data: [{ value: val }] }]
+        });
+      };
+      mkGauge("ah-res-cpu", 68, "#7c3aed");
+      mkGauge("ah-res-mem", 71, "#17a2b8");
+      mkGauge("ah-res-io", 34, "#f59e0b");
+    }
+  }
+}
+</script>
+</body>
+</html>

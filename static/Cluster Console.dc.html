@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes ccPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="ch-"], .card .bd > div[id^="cc-"], .card .bd > div[id^="pm-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Cluster Monitoring</span></div>
+    <div class="spacer"></div>
+    <a href="AI Operations.dc.html" class="pill muted" style="text-decoration:none"><span class="dot"></span>AI Operations →</a>
+    <span class="pill warn" style="margin-left:8px" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:ccPulse 2s infinite"></span>live · refreshed {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet. Ask me to design it next and it will follow the same layout system — KPI tiles, live charts and formatted tables.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Overview" style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px">
+          <div class="kpi blue"><div class="label">PostgreSQL</div><div class="value">18.1</div><div class="sub">PostgreSQL version</div></div>
+          <div class="kpi orange"><div class="label">Location</div><div class="value">primary</div><div class="sub">uae-central · prod-pgcluster-uae</div></div>
+          <div class="kpi purple"><div class="label">Compute</div><div class="value">8 vCPU</div><div class="sub">32 GiB RAM</div></div>
+          <div class="kpi green"><div class="label">Cluster health</div><div class="value">Healthy</div><div class="sub">All members running</div></div>
+          <div class="kpi deepgreen"><div class="label">Sync mode</div><div class="value">Sync</div><div class="sub">pg-sync-1 quorum</div></div>
+          <div class="kpi navy"><div class="label">Standby</div><div class="value">2</div><div class="sub">1 sync · 1 async</div></div>
+          <div class="kpi teal"><div class="label">PgBouncer</div><div class="value">3/3</div><div class="sub">pods ready</div></div>
+        </div>
+        <div class="grid-3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div class="card"><div class="hd">Connections <span class="meta">live · pg_stat_activity</span></div><div class="bd"><div id="cc-gauge-conn" style="height:210px"></div><div class="muted txt-xs" style="text-align:center">212 of 500 max_connections</div></div></div>
+          <div class="card"><div class="hd">Storage usage <span class="meta">118.4 / 500 GiB</span></div><div class="bd"><div id="cc-gauge-store" style="height:210px"></div><div class="muted txt-xs" style="text-align:center">Logical database size vs primary data PVC</div></div></div>
+          <div class="card">
+            <div class="hd">Database sizes <span class="meta">5 databases · 118.4 GiB</span></div>
+            <div class="bd"><div id="cc-dbsizes" style="height:210px"></div></div>
+          </div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Connections trend <span class="meta">ingested samples · 24 h</span></div><div class="bd"><div id="cc-conn-trend" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Storage growth <span class="meta">pg_inspector · table totals</span></div><div class="bd"><div id="cc-store-trend" style="height:230px"></div></div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card">
+            <div class="hd">Patroni members <span class="meta">3 total · timeline 7</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Member</th><th>Role</th><th>State</th><th class="num">Replay lag</th><th class="num">LSN</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ members }}" as="m" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ m.name }}</td><td><span class="pill {{ m.roleTone }}"><span class="dot"></span>{{ m.role }}</span></td><td><span class="pill {{ m.stateTone }}"><span class="dot"></span>{{ m.state }}</span></td><td class="num mono txt-xs">{{ m.lag }}</td><td class="num mono txt-xs">{{ m.lsn }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">WAL &amp; archiving <span class="meta">pgBackRest</span></div>
+            <div class="bd" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="stat card"><div class="lbl">Archive mode</div><div class="val">Enabled</div></div>
+              <div class="stat card"><div class="lbl">WAL level</div><div class="val">logical</div></div>
+              <div class="stat card"><div class="lbl">Max WAL size</div><div class="val">8 <span class="unit">GiB</span></div></div>
+              <div class="stat card"><div class="lbl">Current LSN</div><div class="val" style="font-size:16px">2F/8A03B440</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSessions }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Sessions" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Total connections</div><div class="value">212 / 500</div><div class="sub">42.4% used</div></div>
+          <div class="kpi green"><div class="label">Active queries</div><div class="value">14</div><div class="sub">pg_stat_activity active</div></div>
+          <div class="kpi orange"><div class="label">Idle in transaction</div><div class="value">7</div><div class="sub">longest 84 s</div></div>
+          <div class="kpi slate"><div class="label">Long-running</div><div class="value">2</div><div class="sub">active &gt; 30 s</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Session states</div><div class="bd"><div id="cc-states" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Sessions by database</div><div class="bd"><div id="cc-sessdb" style="height:240px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">pg_stat_activity <span class="meta">8 of 212 sessions · live</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th class="num">pid</th><th>user</th><th>db</th><th>state</th><th>wait</th><th class="num">query_start</th><th>query</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ pgSessions }}" as="s" hint-placeholder-count="8">
+                  <tr>
+                    <td class="num mono txt-xs">{{ s.pid }}</td>
+                    <td class="mono txt-xs">{{ s.user }}</td>
+                    <td class="mono txt-xs">{{ s.db }}</td>
+                    <td><span class="pill {{ s.tone }}"><span class="dot"></span>{{ s.state }}</span></td>
+                    <td class="txt-xs">{{ s.wait }}</td>
+                    <td class="num mono txt-xs">{{ s.age }}</td>
+                    <td><span class="mono txt-xs" style="display:inline-block;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ s.query }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showTopSql }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Top SQL" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="txt-xs" style="color:#6c757d">Order by:</span>
+            <button class="btn sm primary">Total time</button>
+            <button class="btn sm">Mean time</button>
+            <button class="btn sm">Calls</button>
+            <button class="btn sm">p95</button>
+            <span style="flex:1"></span>
+            <span class="txt-xs" style="color:#6c757d">Source: pg_stat_statements · normalized · p95 est.</span>
+          </div>
+        </div>
+        <div class="card"><div class="hd">Top statements by total execution time <span class="meta">seconds · 24 h</span></div><div class="bd"><div id="cc-topsql" style="height:280px"></div></div></div>
+        <div class="card">
+          <div class="hd">Top SQL <span class="meta">6 statements</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>queryid</th><th>db</th><th>normalized query</th><th class="num">calls</th><th class="num">total (s)</th><th class="num">mean (ms)</th><th class="num">p95 (ms)</th><th class="num">rows</th><th class="num">cache hit</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ topSql }}" as="q" hint-placeholder-count="6">
+                  <tr>
+                    <td class="mono txt-xs">{{ q.id }}</td>
+                    <td class="mono txt-xs">{{ q.db }}</td>
+                    <td><span class="mono txt-xs" style="display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle">{{ q.query }}</span></td>
+                    <td class="num mono txt-xs">{{ q.calls }}</td>
+                    <td class="num mono txt-xs">{{ q.total }}</td>
+                    <td class="num mono txt-xs">{{ q.mean }}</td>
+                    <td class="num mono txt-xs">{{ q.p95 }}</td>
+                    <td class="num mono txt-xs">{{ q.rows }}</td>
+                    <td class="num"><span class="pill {{ q.hitTone }}">{{ q.hit }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showLocks }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Lock tree" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi red"><div class="label">Blocking chains</div><div class="value">1</div><div class="sub">pg_blocking_pids</div></div>
+          <div class="kpi orange"><div class="label">Blocked sessions</div><div class="value">2</div><div class="sub">waiting on locks</div></div>
+          <div class="kpi navy"><div class="label">Longest wait</div><div class="value">48 s</div><div class="sub">pid 40233</div></div>
+          <div class="kpi slate"><div class="label">Deadlocks (24 h)</div><div class="value">0</div><div class="sub">pg_stat_database</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Lock tree <span class="meta">blocker → blocked · pg_locks + pg_stat_activity</span></div>
+          <div class="bd">
+            <div style="border:1px solid #e4e4ec;border-radius:8px;padding:14px;background:#fff">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+                <div>
+                  <div class="muted txt-xs" style="font-weight:700;letter-spacing:.05em">BLOCKER</div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                    <span class="pill warn"><span class="dot"></span>holds lock</span>
+                    <span class="mono"><strong>pid 39104</strong> · orders_app@orders_db</span>
+                  </div>
+                  <div class="txt-xs" style="margin-top:6px"><span class="muted">relation</span> <span class="mono">public.orders</span> <span class="muted" style="margin-left:12px">mode</span> <span class="mono">RowExclusiveLock</span> <span class="muted" style="margin-left:12px">held for</span> 1m 12s</div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn sm">Cancel</button>
+                  <button class="btn sm danger">Terminate</button>
+                </div>
+              </div>
+              <div style="margin-left:22px;margin-top:12px;border-left:2px solid #d8dbe4;padding-left:12px;display:flex;flex-direction:column;gap:8px">
+                <div class="muted txt-xs" style="font-weight:700;letter-spacing:.05em">BLOCKED (2)</div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <span class="mono txt-xs"><strong>pid 40233</strong> · orders_app@orders_db</span>
+                  <span class="pill danger"><span class="dot"></span>waiting 48s</span>
+                  <span class="txt-xs muted">on <span class="mono">public.orders</span> (RowExclusiveLock)</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <span class="mono txt-xs"><strong>pid 40391</strong> · reporting@orders_db</span>
+                  <span class="pill danger"><span class="dot"></span>waiting 21s</span>
+                  <span class="txt-xs muted">on <span class="mono">public.orders</span> (AccessShareLock)</span>
+                </div>
+              </div>
+            </div>
+            <div class="muted txt-xs" style="margin-top:10px">Cancel sends SIGINT (query stops, connection stays). Terminate drops the backend and rolls back the transaction — both are audited DBA actions.</div>
+          </div>
+        </div>
+        <div class="card"><div class="hd">Lock waits — last 6 h <span class="meta">sessions waiting per sample</span></div><div class="bd"><div id="cc-lockwaits" style="height:230px"></div></div></div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /api/v1 payloads — values shown are demo.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "overview", group: "monitoring", ph: null, tick: 0 };
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "cc") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  charts = {};
+
+  renderVals() {
+    var self = this;
+    var tab = this.state.tab;
+    var defs = [["overview", "Overview"], ["sessions", "Performance · Sessions"], ["topsql", "Top SQL"], ["locks", "Lock Tree"]];
+    var titles = {
+      overview: ["Cluster Overview", "Patroni members, capacity and performance trends — prod-pgcluster-uae"],
+      sessions: ["Sessions", "Live pg_stat_activity across all databases"],
+      topsql: ["Top SQL", "pg_stat_statements — normalized statements by cost"],
+      locks: ["Lock Tree", "Blocker → blocked chains from pg_blocking_pids"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "cc" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showOverview: tab === "overview", showSessions: tab === "sessions", showTopSql: tab === "topsql", showLocks: tab === "locks",
+      members: [
+        { name: "prod-pgcluster-uae-instance1-0", role: "Leader", roleTone: "ok", state: "running", stateTone: "ok", lag: "—", lsn: "2F/8A03B440" },
+        { name: "prod-pgcluster-uae-instance2-0", role: "Sync Standby", roleTone: "info", state: "streaming", stateTone: "ok", lag: "48 KB", lsn: "2F/8A02F1A8" },
+        { name: "dr-pgcluster-uae-instance1-0", role: "Replica", roleTone: "muted", state: "streaming", stateTone: "ok", lag: "2.1 MB", lsn: "2F/89E44C00" }
+      ],
+      pgSessions: [
+        { pid: "39104", user: "orders_app", db: "orders_db", state: "active", tone: "ok", wait: "—", age: "1m 12s", query: "UPDATE orders SET status = $1, updated_at = now() WHERE id = $2" },
+        { pid: "40233", user: "orders_app", db: "orders_db", state: "active", tone: "ok", wait: "Lock: transactionid", age: "48s", query: "UPDATE orders SET status = $1 WHERE id = $2" },
+        { pid: "40391", user: "reporting", db: "orders_db", state: "active", tone: "ok", wait: "Lock: relation", age: "21s", query: "SELECT date_trunc('hour', created_at) AS h, count(*) FROM orders GROUP BY 1 ORDER BY 1" },
+        { pid: "38872", user: "etl_batch", db: "payments_db", state: "active", tone: "ok", wait: "IO: DataFileRead", age: "12s", query: "INSERT INTO settlement_daily SELECT merchant_id, sum(amount) FROM payments WHERE captured_at >= $1 GROUP BY 1" },
+        { pid: "40412", user: "inventory_svc", db: "inventory_db", state: "active", tone: "ok", wait: "LWLock: WALWrite", age: "0.9s", query: "UPDATE stock SET qty = qty - $1 WHERE sku = $2" },
+        { pid: "37518", user: "orders_app", db: "orders_db", state: "idle in transaction", tone: "warn", wait: "Client: ClientRead", age: "1m 24s", query: "BEGIN; SELECT * FROM line_items WHERE order_id = $1 FOR UPDATE" },
+        { pid: "40488", user: "payments_svc", db: "payments_db", state: "idle", tone: "muted", wait: "Client: ClientRead", age: "—", query: "COMMIT" },
+        { pid: "36001", user: "postgres", db: "orders_db", state: "active", tone: "ok", wait: "—", age: "31s", query: "autovacuum: VACUUM public.line_items" }
+      ],
+      topSql: [
+        { id: "8237441905", db: "orders_db", query: "SELECT o.*, li.* FROM orders o JOIN line_items li ON li.order_id = o.id WHERE o.customer_id = $1", calls: "1,204,338", total: "184.2", mean: "0.153", p95: "1.84", rows: "6,021,690", hit: "99.2%", hitTone: "ok" },
+        { id: "4821090337", db: "inventory_db", query: "SELECT * FROM stock WHERE warehouse_id = $1 AND qty < reorder_level", calls: "88,412", total: "121.5", mean: "1.374", p95: "12.40", rows: "442,060", hit: "91.3%", hitTone: "warn" },
+        { id: "6640287119", db: "payments_db", query: "INSERT INTO settlement_daily SELECT merchant_id, sum(amount) FROM payments WHERE captured_at >= $1 GROUP BY 1", calls: "96", total: "96.7", mean: "1007.3", p95: "2210.00", rows: "48,211", hit: "84.1%", hitTone: "danger" },
+        { id: "1093822741", db: "orders_db", query: "UPDATE orders SET status = $1, updated_at = now() WHERE id = $2", calls: "2,411,077", total: "61.2", mean: "0.025", p95: "0.31", rows: "2,411,077", hit: "99.8%", hitTone: "ok" },
+        { id: "3358810226", db: "orders_db", query: "SELECT date_trunc('hour', created_at) AS h, count(*) FROM orders GROUP BY 1 ORDER BY 1", calls: "1,440", total: "44.8", mean: "31.1", p95: "88.20", rows: "34,560", hit: "96.4%", hitTone: "ok" },
+        { id: "7729034815", db: "inventory_db", query: "UPDATE stock SET qty = qty - $1 WHERE sku = $2", calls: "1,890,224", total: "31.2", mean: "0.017", p95: "0.22", rows: "1,890,224", hit: "99.9%", hitTone: "ok" }
+      ]
+    };
+  }
+
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { overview: 1, sessions: 1, topsql: 1, locks: 1 };
+    var groupOf = { overview: "monitoring", sessions: "monitoring", topsql: "perf", locks: "perf" };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null, group: groupOf[h] || "monitoring" });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    if (this.props.liveUpdates ?? true) this._live = setInterval(function () { self.liveTick(); }, 3000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() {
+    window.removeEventListener("resize", this._resize);
+    clearInterval(this._clock); clearInterval(this._live);
+    this.disposeAll();
+  }
+  disposeAll() {
+    Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {};
+    Object.values(this._ros || {}).forEach(function (r) { r.disconnect(); }); this._ros = {};
+  }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el);
+    c.setOption(option);
+    this.charts[id] = c;
+    var self = this;
+    this._ros = this._ros || {};
+    if (this._ros[id]) this._ros[id].disconnect();
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (self.charts[id]) self.charts[id].resize(); });
+      ro.observe(el);
+      this._ros[id] = ro;
+    }
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  gauge(value, thresholds) {
+    return {
+      series: [{ type: "gauge", startAngle: 210, endAngle: -30, min: 0, max: 100, radius: "95%", center: ["50%", "60%"],
+        progress: { show: true, width: 14, itemStyle: { color: value < thresholds[0] ? "#107c10" : value < thresholds[1] ? "#f59e0b" : "#dc3545" } },
+        axisLine: { lineStyle: { width: 14, color: [[1, "#eef0f5"]] } },
+        axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false }, pointer: { show: false },
+        detail: { valueAnimation: true, formatter: "{value}%", fontSize: 30, fontWeight: 700, fontFamily: "Times New Roman", color: "#212529", offsetCenter: [0, "-4%"] },
+        title: { show: true, offsetCenter: [0, "34%"], fontSize: 11, color: "#8a8fa3" },
+        data: [{ value: value, name: "Used" }] }],
+      textStyle: { fontFamily: "Poppins, sans-serif" }
+    };
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { overview: "cc-gauge-conn", sessions: "cc-states", topsql: "cc-topsql", locks: "cc-lockwaits" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab, b = this.base.bind(this);
+    var hours = [];
+    for (var i = 23; i >= 0; i--) { var d = new Date(Date.now() - i * 3600e3); hours.push(String(d.getHours()).padStart(2, "0") + ":00"); }
+    if (tab === "overview") {
+      this.mk("cc-gauge-conn", this.gauge(42, [60, 85]));
+      this.mk("cc-gauge-store", this.gauge(24, [70, 85]));
+      this.mk("cc-dbsizes", Object.assign(b(), {
+        tooltip: { trigger: "item", valueFormatter: function (v) { return v.toFixed(1) + " GiB"; } },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8, textStyle: { fontSize: 10 } },
+        series: [{ type: "pie", radius: ["46%", "68%"], center: ["50%", "42%"], label: { show: false },
+          data: [
+            { name: "orders_db", value: 52.6, itemStyle: { color: "#7c3aed" } },
+            { name: "payments_db", value: 28.3, itemStyle: { color: "#17a2b8" } },
+            { name: "inventory_db", value: 21.4, itemStyle: { color: "#f59e0b" } },
+            { name: "audit_db", value: 12.9, itemStyle: { color: "#107c10" } },
+            { name: "metadata_db", value: 3.2, itemStyle: { color: "#a78bfa" } }
+          ] }],
+        graphic: [{ type: "text", left: "center", top: "36%", style: { text: "118.4", fontSize: 22, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "47%", style: { text: "GiB total", fontSize: 10, fill: "#8a8fa3" } }]
+      }));
+      this._connData = { hours: hours.slice(), vals: hours.map(function (_, i) { return Math.round(190 + 60 * Math.sin(i / 3.2) + Math.random() * 24); }) };
+      this.mk("cc-conn-trend", Object.assign(b(), {
+        xAxis: { type: "category", data: this._connData.hours, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", max: 520, splitLine: { lineStyle: { color: "#eef0f5" } }, name: "Active sessions", nameTextStyle: { fontSize: 10, color: "#8a8fa3", align: "left" } },
+        series: [{ name: "Sessions", type: "line", smooth: true, showSymbol: false, data: this._connData.vals, lineStyle: { width: 2.5, color: "#7c3aed" }, itemStyle: { color: "#7c3aed" }, areaStyle: { opacity: 0.12, color: "#7c3aed" },
+          markLine: { silent: true, symbol: "none", lineStyle: { color: "#dc3545", type: "dashed", width: 1 }, label: { formatter: "max_connections 500", position: "insideEndTop", fontSize: 10, color: "#dc3545" }, data: [{ yAxis: 500 }] },
+          markArea: { silent: true, itemStyle: { color: "rgba(245,158,11,.08)" }, data: [[{ yAxis: 400 }, { yAxis: 500 }]] } }],
+        tooltip: Object.assign(b().tooltip, { valueFormatter: function (v) { return Math.round(v).toLocaleString() + " connections"; } })
+      }));
+      var storeVals = hours.map(function (_, i) { return +(116.2 + i * 0.09 + Math.random() * 0.12).toFixed(2); });
+      this.mk("cc-store-trend", Object.assign(b(), {
+        xAxis: { type: "category", data: hours, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", min: 115, splitLine: { lineStyle: { color: "#eef0f5" } }, name: "Database size", nameTextStyle: { fontSize: 10, color: "#8a8fa3", align: "left" }, axisLabel: { formatter: "{value} GiB" } },
+        series: [{ name: "Total size", type: "line", smooth: true, showSymbol: false, data: storeVals, lineStyle: { width: 2.5, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" }, areaStyle: { opacity: 0.1, color: "#17a2b8" } }],
+        tooltip: Object.assign(b().tooltip, { valueFormatter: function (v) { return v.toFixed(2) + " GiB"; } })
+      }));
+    } else if (tab === "sessions") {
+      this.mk("cc-states", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "active", value: 14, itemStyle: { color: "#107c10" } }, { name: "idle", value: 191, itemStyle: { color: "#a78bfa" } }, { name: "idle in transaction", value: 7, itemStyle: { color: "#f59e0b" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "212", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "sessions", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("cc-sessdb", Object.assign(b(), {
+        grid: { left: 100, right: 44, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["orders_db", "payments_db", "inventory_db", "audit_db", "metadata_db"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [104, 48, 33, 18, 9], barWidth: 15, itemStyle: { color: "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b" } }]
+      }));
+    } else if (tab === "topsql") {
+      this.mk("cc-topsql", Object.assign(b(), {
+        grid: { left: 190, right: 60, top: 10, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: function (v) { return v + " s"; } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, axisLabel: { fontFamily: "monospace", fontSize: 10 }, data: ["SELECT o.*, li.* FROM orders…", "SELECT * FROM stock WHERE…", "INSERT INTO settlement_daily…", "UPDATE orders SET status…", "SELECT date_trunc('hour',…)…", "UPDATE stock SET qty…"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [184.2, 121.5, 96.7, 61.2, 44.8, 31.2], barWidth: 15, itemStyle: { color: "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", formatter: "{c} s" } }]
+      }));
+    } else if (tab === "locks") {
+      var pts = [];
+      for (var j = 0; j < 72; j++) { var t = new Date(Date.now() - (72 - j) * 5 * 60e3); pts.push(String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0")); }
+      var waits = pts.map(function (_, i) { var v = Math.random() < 0.75 ? 0 : Math.round(Math.random() * 2); if (i > 62) v = 2 + Math.round(Math.random()); return v; });
+      this.mk("cc-lockwaits", Object.assign(b(), {
+        xAxis: { type: "category", data: pts, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 17 } },
+        yAxis: { type: "value", minInterval: 1, splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "Waiting sessions", type: "bar", data: waits, barWidth: "60%", itemStyle: { color: "#f59e0b", borderRadius: [3, 3, 0, 0] } }],
+        tooltip: Object.assign(b().tooltip, { valueFormatter: function (v) { return v + " waiting"; } })
+      }));
+    }
+  }
+  liveTick() {
+    var c = this.charts["cc-conn-trend"], d = this._connData;
+    if (!c || !d || this.state.tab !== "overview") return;
+    var t = new Date();
+    d.hours.push(String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0")); d.hours.shift();
+    var last = d.vals[d.vals.length - 1];
+    d.vals.push(Math.max(60, Math.min(498, last + Math.round((Math.random() - 0.5) * 22)))); d.vals.shift();
+    c.setOption({ xAxis: { data: d.hours }, series: [{ data: d.vals }] });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes aioPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="ch-"], .card .bd > div[id^="cc-"], .card .bd > div[id^="pm-"] { width: 100%; min-width: 0; overflow: hidden; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">AI Operations</span></div>
+    <div class="spacer"></div>
+    <a href="Cluster Console.dc.html" class="pill muted" style="text-decoration:none"><span class="dot"></span>Cluster Monitoring →</a>
+    <span class="pill warn" style="margin-left:8px" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:aioPulse 2s infinite"></span>live · refreshed {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet. Ask me to design it next and it will follow the same layout system — KPI tiles, live charts and formatted tables.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showConsole }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="AI Ops Console" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Provider</div><div class="value">Anthropic</div><div class="sub">configured · claude-sonnet-4</div></div>
+          <div class="kpi teal"><div class="label">Recommendations</div><div class="value">32</div><div class="sub">9 pending review</div></div>
+          <div class="kpi red"><div class="label">Open incidents</div><div class="value">3</div><div class="sub">1 high · 2 medium</div></div>
+          <div class="kpi navy"><div class="label">RAG documents</div><div class="value">128</div><div class="sub">semantic search on</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Agent activity — last 24 hours <span class="meta">recommendations · incidents · anomaly score</span></div>
+          <div class="bd"><div id="ch-activity" style="height:280px"></div></div>
+        </div>
+        <div class="grid-3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div class="card"><div class="hd">Severity mix</div><div class="bd"><div id="ch-severity" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Recommendation categories</div><div class="bd"><div id="ch-category" style="height:240px"></div></div></div>
+          <div class="card"><div class="hd">Query latency p95 <span class="meta">ms · primary</span></div><div class="bd"><div id="ch-latency" style="height:240px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent recommendations <span class="meta">metadata database · live</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Category</th><th>Title</th><th>Target</th><th>Age</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ recs }}" as="r" hint-placeholder-count="6">
+                  <tr>
+                    <td><span class="pill {{ r.tone }}"><span class="dot"></span>{{ r.severity }}</span></td>
+                    <td>{{ r.category }}</td>
+                    <td class="txt-xs">{{ r.title }}</td>
+                    <td class="mono txt-xs">{{ r.target }}</td>
+                    <td class="txt-xs">{{ r.age }}</td>
+                    <td><span class="pill {{ r.statusTone }}"><span class="dot"></span>{{ r.status }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showNlsql }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Ask Your Database" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="hd">Ask Your Database <span class="meta">natural language → guarded read-only SQL</span></div>
+          <div class="bd">
+            <div class="grid-2" style="margin-bottom:12px">
+              <div class="field" style="margin:0"><label>Database scope</label><select><option>All Patroni application databases</option><option>orders_db</option><option>payments_db</option><option>inventory_db</option></select></div>
+              <div class="field" style="margin:0"><label>Maximum rows per database</label><select><option>50</option><option selected="selected">100</option><option>250</option></select></div>
+            </div>
+            <div class="field" style="margin:0"><label>Question</label><textarea rows="4" style="width:100%;box-sizing:border-box;resize:vertical;font-family:var(--mono,monospace);line-height:1.55" defaultValue="Which tables have the most dead tuples across the cluster?"></textarea></div>
+            <div class="flex-row" style="display:flex;gap:10px;justify-content:space-between;margin-top:10px;flex-wrap:wrap;align-items:center">
+              <div class="muted txt-xs">Ctrl/⌘ + Enter to run · SELECT / WITH only · never queries the monitoring metadata database</div>
+              <button class="btn primary" onClick="{{ reAsk }}">Ask</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Generated SQL <span class="pill muted"><span class="dot"></span>anthropic / claude-sonnet-4</span> <span class="pill ok"><span class="dot"></span>3 databases</span></div>
+          <div class="bd"><pre class="mono txt-xs" style="white-space:pre-wrap;margin:0">SELECT schemaname, relname, n_dead_tup, n_live_tup,
+       round(100.0 * n_dead_tup / greatest(n_live_tup, 1), 1) AS dead_pct
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC
+LIMIT 100;</pre></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Visual result · n_dead_tup</div><div class="bd"><div id="ch-nlsql" style="height:260px"></div></div></div>
+          <div class="card"><div class="hd">Rows by database</div><div class="bd"><div id="ch-nlsqldb" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Result <span class="meta">18 rows across 3 databases</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>schemaname</th><th>relname</th><th class="num">n_dead_tup</th><th class="num">n_live_tup</th><th class="num">dead_pct</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ sqlRows }}" as="q" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ q.schema }}</td><td class="mono txt-xs">{{ q.rel }}</td><td class="num mono txt-xs">{{ q.dead }}</td><td class="num mono txt-xs">{{ q.live }}</td><td class="num mono txt-xs">{{ q.pct }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showVector }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Vector and RAG" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">KB documents</div><div class="value">128</div><div class="sub">ai_knowledge_base</div></div>
+          <div class="kpi deepgreen"><div class="label">Semantic search</div><div class="value">enabled</div><div class="sub">pgvector embeddings</div></div>
+          <div class="kpi teal"><div class="label">Embeddings</div><div class="value">bge-small</div><div class="sub">FastEmbed · offline cache</div></div>
+          <div class="kpi purple"><div class="label">Avg retrieval</div><div class="value">42 ms</div><div class="sub">top-k = 6</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Retrieval methods</div><div class="bd"><div id="ch-methods" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Knowledge sources</div><div class="bd"><div id="ch-sources" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Knowledge base documents <span class="meta">top matches</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>ID</th><th>Title</th><th>Category</th><th class="num">Score</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ docs }}" as="d" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ d.id }}</td><td class="txt-xs">{{ d.title }}</td><td>{{ d.cat }}</td><td class="num mono txt-xs">{{ d.score }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAgents }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Agent Governance" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Scheduler</div><div class="value">on</div><div class="sub">running · every 15 min</div></div>
+          <div class="kpi orange"><div class="label">Execution</div><div class="value">analyze-only</div><div class="sub">SHADOW · mutations off</div></div>
+          <div class="kpi blue"><div class="label">Agent runs</div><div class="value">48</div><div class="sub">last 24 h</div></div>
+          <div class="kpi slate"><div class="label">Audit entries</div><div class="value">120</div><div class="sub">governance trail</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Run outcomes</div><div class="bd"><div id="ch-runs" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Trigger distribution</div><div class="bd"><div id="ch-triggers" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Agent run timeline <span class="meta">most recent 12</span></div>
+          <div class="bd" style="display:flex;gap:8px;overflow-x:auto;padding:16px 14px">
+            <sc-for list="{{ runs }}" as="run" hint-placeholder-count="8">
+              <div style="flex:0 0 auto;min-width:120px;border:1px solid #e4e4ec;border-radius:8px;padding:8px 10px;background:#fff">
+                <span class="pill {{ run.tone }}"><span class="dot"></span>{{ run.status }}</span>
+                <div class="txt-xs" style="margin-top:6px;font-weight:600">{{ run.agent }}</div>
+                <div class="muted txt-xs">{{ run.when }} · {{ run.trigger }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Governance audit trail</div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>When</th><th>Action</th><th>Status</th><th>Actor</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ audit }}" as="a" hint-placeholder-count="6">
+                  <tr><td class="txt-xs">{{ a.when }}</td><td>{{ a.action }}</td><td><span class="pill {{ a.tone }}"><span class="dot"></span>{{ a.status }}</span></td><td class="mono txt-xs">{{ a.actor }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showBranching }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Branching and Forks" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Logical slots</div><div class="value">6</div><div class="sub">4 active branches</div></div>
+          <div class="kpi green"><div class="label">Physical standbys</div><div class="value">2</div><div class="sub">1 sync · 1 async</div></div>
+          <div class="kpi teal"><div class="label">Publications</div><div class="value">3</div><div class="sub">logical sources</div></div>
+          <div class="kpi navy"><div class="label">Subscriptions</div><div class="value">1</div><div class="sub">logical targets</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Replication lag <span class="meta">bytes · 6 h</span></div><div class="bd"><div id="ch-lag" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Standby synchronization</div><div class="bd"><div id="ch-sync" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Logical replication slots</div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Slot</th><th>Database</th><th>Active</th><th>WAL status</th><th class="num">Retained WAL</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ slots }}" as="s" hint-placeholder-count="6">
+                  <tr><td class="mono">{{ s.name }}</td><td>{{ s.db }}</td><td><span class="pill {{ s.tone }}"><span class="dot"></span>{{ s.active }}</span></td><td>{{ s.wal }}</td><td class="num mono txt-xs">{{ s.retained }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAgent }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI Agent" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn sm primary">Run AI Agent Now</button>
+            <span class="pill muted"><span class="dot"></span>IDLE</span>
+            <span class="pill ok"><span class="dot"></span>scheduler on</span>
+            <span class="pill ok"><span class="dot"></span>key present</span>
+            <span class="pill muted"><span class="dot"></span>email off</span>
+            <span class="pill muted"><span class="dot"></span>execution disabled</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Recommendations</div><div class="value">32</div><div class="sub">9 pending</div></div>
+          <div class="kpi red"><div class="label">High severity</div><div class="value">9</div><div class="sub">critical / high</div></div>
+          <div class="kpi teal"><div class="label">Approved</div><div class="value">6</div><div class="sub">awaiting controlled execution</div></div>
+          <div class="kpi navy"><div class="label">Latest run</div><div class="value">COMPLETED</div><div class="sub">22:10 · scheduled</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Approval status</div><div class="bd"><div id="ch-approval" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Findings by severity <span class="meta">last 200</span></div><div class="bd"><div id="ch-agentsev" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">AI Recommendations <span class="meta">6 of 32 rows</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Created</th><th>Severity</th><th>Category</th><th>Status</th><th>Finding</th><th>Object</th><th class="num">Confidence</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ agentRecs }}" as="g" hint-placeholder-count="6">
+                  <tr>
+                    <td class="txt-xs">{{ g.created }}</td>
+                    <td><span class="pill {{ g.sevTone }}"><span class="dot"></span>{{ g.severity }}</span></td>
+                    <td class="mono txt-xs">{{ g.category }}</td>
+                    <td><span class="pill {{ g.statusTone }}"><span class="dot"></span>{{ g.status }}</span></td>
+                    <td class="txt-xs" style="min-width:280px">{{ g.finding }}</td>
+                    <td class="mono txt-xs">{{ g.object }}</td>
+                    <td class="num">{{ g.confidence }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Run history</div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Run</th><th>Trigger</th><th>Status</th><th>Started</th><th>Finished</th><th>Summary</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ agentRuns }}" as="h" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ h.id }}</td><td>{{ h.trigger }}</td><td><span class="pill {{ h.tone }}"><span class="dot"></span>{{ h.status }}</span></td><td class="txt-xs">{{ h.started }}</td><td class="txt-xs">{{ h.finished }}</td><td class="txt-xs">{{ h.summary }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showSqlInsight }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="SQL Insight" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi blue"><div class="label">Active sessions</div><div class="value">14</div><div class="sub">non-idle right now</div></div>
+          <div class="kpi teal"><div class="label">Distinct wait types</div><div class="value">5</div><div class="sub">across active work</div></div>
+          <div class="kpi orange"><div class="label">Top wait</div><div class="value">IO</div><div class="sub">dominant wait class</div></div>
+          <div class="kpi deepgreen"><div class="label">pg_stat_statements</div><div class="value">on</div><div class="sub">top SQL live</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Wait profile <span class="meta">pg_stat_activity snapshot</span></div><div class="bd"><div id="ch-wait" style="height:260px"></div></div></div>
+          <div class="card"><div class="hd">Top SQL by total time <span class="meta">total ms</span></div><div class="bd"><div id="ch-topsql" style="height:260px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Active sessions (14)</div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>User</th><th>Database</th><th>Wait</th><th>State</th><th class="num">Active</th><th>Query</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="6">
+                  <tr><td>{{ s.user }}</td><td>{{ s.db }}</td><td><span class="pill muted"><span class="dot"></span>{{ s.wait }}</span></td><td>{{ s.state }}</td><td class="num">{{ s.active }}</td><td class="mono txt-xs" style="max-width:420px;white-space:normal">{{ s.query }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAssistant }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Assistant" style="display:grid;grid-template-columns:1fr 340px;gap:12px;align-items:start">
+        <div class="card">
+          <div class="hd">AI Assistant <span class="pill ok"><span class="dot"></span>anthropic / claude-sonnet-4</span> <span class="meta">evidence-cited answers · SHADOW mode</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:14px;min-height:420px">
+            <div style="align-self:flex-end;max-width:78%;background:#7c3aed;color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;line-height:1.5">Why did replay lag spike on dr-pgcluster-uae-1 around 21:30?</div>
+            <div style="align-self:flex-start;max-width:85%;background:#f6f4fb;border:1px solid #e4e4ec;border-radius:12px 12px 12px 2px;padding:12px 14px;font-size:13px;line-height:1.6">
+              Replay lag on <strong>dr-pgcluster-uae-1</strong> rose to 34 s between 21:28–21:34, coinciding with a checkpoint storm on the primary: <span class="mono txt-xs">checkpoints_req</span> jumped from 2/h to 11/h while <span class="mono txt-xs">line_items</span> autovacuum was rewriting 412 k dead tuples. WAL generation peaked at 96 MB/min — beyond the async standby's replay rate.
+              <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+                <span class="pill muted"><span class="dot"></span>evidence: pg_profile 21:00–22:00</span>
+                <span class="pill muted"><span class="dot"></span>INC-0231</span>
+              </div>
+              <div style="margin-top:10px;border:1px solid #ffd166;background:#fff3cd;border-radius:8px;padding:8px 12px">
+                <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;color:#856404">PROPOSED ACTION</div>
+                <div class="txt-xs" style="margin-top:3px">Raise <span class="mono">checkpoint_completion_target</span> to 0.9 and set <span class="mono">max_wal_size = 8GB</span>. Requires quorum approval — execution disabled in SHADOW.</div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <button class="btn sm primary" disabled="disabled" style="opacity:.55;cursor:not-allowed">Approve</button>
+                  <button class="btn sm ghost">Reject</button>
+                  <span class="pill warn"><span class="dot"></span>blocked · SHADOW</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:auto;display:flex;gap:8px">
+              <input placeholder="Ask about incidents, performance, replication…" style="flex:1;border:1px solid #d8dbe4;border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit">
+              <button class="btn primary">Send</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="card"><div class="hd">Session context</div><div class="bd" style="display:flex;flex-direction:column;gap:8px">
+            <span class="pill ok"><span class="dot"></span>cluster: prod-pgcluster-uae (uat)</span>
+            <span class="pill muted"><span class="dot"></span>RAG: 6 documents retrieved</span>
+            <span class="pill muted"><span class="dot"></span>window: last 24 h</span>
+            <span class="pill warn"><span class="dot"></span>mutations: fail-closed</span>
+          </div></div>
+          <div class="card"><div class="hd">Cited evidence</div><div class="bd" style="padding:0">
+            <table class="table" style="width:100%">
+              <tbody>
+                <sc-for list="{{ citations }}" as="c" hint-placeholder-count="4">
+                  <tr><td class="mono txt-xs">{{ c.id }}</td><td class="txt-xs">{{ c.title }}</td><td class="num mono txt-xs">{{ c.score }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDbaRecs }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI DBA Recommendations" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;width:150px"><label>Container RAM (GiB)</label><input type="number" value="128"></div>
+            <div class="field" style="margin:0;width:130px"><label>CPU cores</label><input type="number" value="32"></div>
+            <button class="btn sm primary" onClick="{{ reAsk }}">Run recommendations</button>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>GET /advisor/parameters · /recommendations</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Open recommendations</div><div class="value">{{ dbarecSummary.total }}</div><div class="sub">{{ dbarecSummary.pending }} pending</div></div>
+          <div class="kpi red"><div class="label">Critical / high</div><div class="value">{{ dbarecSummary.high }}</div><div class="sub">act now</div></div>
+          <div class="kpi orange"><div class="label">Parameter findings</div><div class="value">6</div><div class="sub">3 advice · 3 ok</div></div>
+          <div class="kpi teal"><div class="label">Est. impact</div><div class="value">high</div><div class="sub">bloat + plans</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recommendations <span class="meta">engine.list_recommendations · category + severity</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Category</th><th>Finding</th><th>Object</th><th class="num">Confidence</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ dbaRecRows }}" as="r" hint-placeholder-count="6">
+                  <tr><td><span class="pill {{ r.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.severity }}</span></td><td class="txt-xs muted">{{ r.category }}</td><td style="min-width:280px"><strong class="txt-xs">{{ r.finding }}</strong><div class="muted txt-xs" style="white-space:normal;max-width:520px">{{ r.rootCause }}</div></td><td class="mono txt-xs">{{ r.object }}</td><td class="num mono txt-xs">{{ r.confidence }}</td><td><span class="pill {{ r.statusTone }}" style="white-space:nowrap">{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Parameter advisor <span class="meta">parameter_advisor.build_response · sized 128 GiB / 32 cores</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Parameter</th><th>Current</th><th>Recommended</th><th>Apply</th><th>Rationale</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ paramRows }}" as="p" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ p.name }}</td><td class="mono txt-xs">{{ p.cur }}</td><td class="mono txt-xs"><strong>{{ p.rec }}</strong></td><td><span class="pill {{ p.applyTone }}" style="white-space:nowrap">{{ p.apply }}</span></td><td class="txt-xs" style="white-space:normal;max-width:340px">{{ p.rationale }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipOverview }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI Overview" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Agent</div><div class="value">{{ aipAgent.state }}</div><div class="sub">scheduler {{ aipAgent.scheduler }}</div></div>
+          <div class="kpi teal"><div class="label">Recommendations</div><div class="value">{{ dbarecSummary.total }}</div><div class="sub">{{ dbarecSummary.pending }} pending</div></div>
+          <div class="kpi red"><div class="label">Open incidents</div><div class="value">3</div><div class="sub">ai_incident</div></div>
+          <div class="kpi navy"><div class="label">Last run</div><div class="value">{{ aipAgent.lastRun }}</div><div class="sub">{{ aipAgent.lastRunWhen }}</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card"><div class="hd">Recommendations by severity <span class="meta">recommendations_summary</span></div><div class="bd"><div id="ch-aip-sev" style="height:250px"></div></div></div>
+          <div class="card"><div class="hd">Recommendations by approval <span class="meta">open pipeline</span></div><div class="bd"><div id="ch-aip-appr" style="height:250px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recent recommendations <span class="meta">recent_recommendations · /api/v1/ai/overview</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Category</th><th>Finding</th><th>Cluster</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ dbaRecRows }}" as="r" hint-placeholder-count="5">
+                  <tr><td><span class="pill {{ r.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.severity }}</span></td><td class="txt-xs muted">{{ r.category }}</td><td class="txt-xs" style="min-width:280px">{{ r.finding }}</td><td class="mono txt-xs">prod-pgcluster-uae</td><td><span class="pill {{ r.statusTone }}" style="white-space:nowrap">{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipInbox }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Recommendations Inbox" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;min-width:140px"><label>Severity</label><select><option>All</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Category</label><select><option>All</option><option>vacuum</option><option>index</option><option>replication</option><option>connection</option></select></div>
+            <div class="field" style="margin:0;min-width:150px"><label>Approval status</label><select><option>open</option><option>approved</option><option>rejected</option><option>executed</option></select></div>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>GET /api/v1/ai/recommendations</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Inbox</div><div class="value">{{ dbarecSummary.total }}</div><div class="sub">all statuses</div></div>
+          <div class="kpi orange"><div class="label">Pending</div><div class="value">{{ dbarecSummary.pending }}</div><div class="sub">need triage</div></div>
+          <div class="kpi red"><div class="label">Critical / high</div><div class="value">{{ dbarecSummary.high }}</div><div class="sub">priority</div></div>
+          <div class="kpi teal"><div class="label">Approved</div><div class="value">6</div><div class="sub">→ executor</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Recommendation inbox <span class="meta">click a row to open evidence pack</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Category</th><th>Finding</th><th>Object</th><th class="num">Confidence</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ dbaRecRows }}" as="r" hint-placeholder-count="6">
+                  <tr><td><span class="pill {{ r.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ r.severity }}</span></td><td class="txt-xs muted">{{ r.category }}</td><td class="txt-xs" style="min-width:280px">{{ r.finding }}</td><td class="mono txt-xs">{{ r.object }}</td><td class="num mono txt-xs">{{ r.confidence }}</td><td><span class="pill {{ r.statusTone }}" style="white-space:nowrap">{{ r.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipSched }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Agent Scheduler" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Scheduler</div><div class="value">on</div><div class="sub">every 15 min</div></div>
+          <div class="kpi blue"><div class="label">Runs (24h)</div><div class="value">48</div><div class="sub">list_runs</div></div>
+          <div class="kpi green"><div class="label">Success</div><div class="value">94%</div><div class="sub">45 / 48</div></div>
+          <div class="kpi orange"><div class="label">Next run</div><div class="value">14 m</div><div class="sub">scheduled</div></div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn sm primary" disabled="disabled">Run agent now (SHADOW)</button>
+            <span class="pill ok"><span class="dot"></span>POST /api/v1/ai/agents/run-now</span>
+            <div style="flex:1"></div>
+            <span class="pill muted"><span class="dot"></span>execution: analyze-only</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Agent run history <span class="meta">ai_agent_service.list_runs</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Run</th><th>Trigger</th><th>Status</th><th>Started</th><th>Finished</th><th>Summary</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ agentRuns }}" as="h" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ h.id }}</td><td class="txt-xs">{{ h.trigger }}</td><td><span class="pill {{ h.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ h.status }}</span></td><td class="mono txt-xs">{{ h.started }}</td><td class="mono txt-xs">{{ h.finished }}</td><td class="txt-xs">{{ h.summary }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipExec }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Controlled Executor" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi orange"><div class="label">Execution mode</div><div class="value">analyze-only</div><div class="sub">SHADOW · fail-closed</div></div>
+          <div class="kpi teal"><div class="label">Approved queue</div><div class="value">6</div><div class="sub">awaiting execution</div></div>
+          <div class="kpi green"><div class="label">Executed (30d)</div><div class="value">11</div><div class="sub">all reversible</div></div>
+          <div class="kpi red"><div class="label">Failed</div><div class="value">2</div><div class="sub">rolled back</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Approved &amp; awaiting controlled execution <span class="meta">POST /recommendations/{id}/execute · guarded</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Recommendation</th><th>Category</th><th>Proposed action</th><th>Reversible</th><th>Approval</th><th>Execute</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ execRows }}" as="e" hint-placeholder-count="4">
+                  <tr><td class="txt-xs" style="min-width:220px"><strong>{{ e.title }}</strong></td><td class="txt-xs muted">{{ e.category }}</td><td class="mono txt-xs" style="white-space:normal;max-width:320px">{{ e.action }}</td><td><span class="pill {{ e.revTone }}" style="white-space:nowrap">{{ e.reversible }}</span></td><td><span class="pill ok" style="white-space:nowrap"><span class="dot"></span>{{ e.approval }}</span></td><td class="num"><button class="btn ghost sm" disabled="disabled">Execute</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="pill warn"><span class="dot"></span>SHADOW</span>
+            <span class="muted txt-xs">Controlled execution is fail-closed in UAT — approved recommendations are staged but never applied. Each carries a rollback plan and evidence pack.</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipApprovals }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="DBA Approvals" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi orange"><div class="label">Awaiting approval</div><div class="value">9</div><div class="sub">DBA quorum</div></div>
+          <div class="kpi green"><div class="label">Approved (7d)</div><div class="value">14</div><div class="sub">→ executor</div></div>
+          <div class="kpi red"><div class="label">Rejected (7d)</div><div class="value">5</div><div class="sub">with reason</div></div>
+          <div class="kpi navy"><div class="label">Median time</div><div class="value">38 m</div><div class="sub">to decision</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Approval queue <span class="meta">POST /recommendations/{id}/approve · reject</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Severity</th><th>Finding</th><th>Object</th><th>Requested by</th><th>Age</th><th>Decision</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ approvalRows }}" as="a" hint-placeholder-count="5">
+                  <tr><td><span class="pill {{ a.sevTone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.severity }}</span></td><td class="txt-xs" style="min-width:260px">{{ a.finding }}</td><td class="mono txt-xs">{{ a.object }}</td><td class="txt-xs">{{ a.by }}</td><td class="mono txt-xs">{{ a.age }}</td><td style="white-space:nowrap"><button class="btn sm primary" disabled="disabled">Approve</button> <button class="btn sm ghost">Reject</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipGateway }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Model Gateway" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Provider</div><div class="value">{{ gateway.provider }}</div><div class="sub">{{ gateway.model }}</div></div>
+          <div class="kpi green"><div class="label">Availability</div><div class="value">{{ gateway.available }}</div><div class="sub">provider_status</div></div>
+          <div class="kpi teal"><div class="label">Avg latency</div><div class="value">310 ms</div><div class="sub">RCA generation</div></div>
+          <div class="kpi navy"><div class="label">Fallback</div><div class="value">Ollama</div><div class="sub">CPU-hosted</div></div>
+        </div>
+        <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;min-width:0">
+          <div class="card">
+            <div class="hd">Provider chain <span class="meta">ai_provider.provider_status</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Provider</th><th>Model</th><th>Role</th><th class="num">Latency</th><th>Status</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ providerRows }}" as="p" hint-placeholder-count="3">
+                    <tr><td class="txt-xs" style="font-weight:600">{{ p.provider }}</td><td class="mono txt-xs">{{ p.model }}</td><td class="txt-xs">{{ p.role }}</td><td class="num mono txt-xs">{{ p.latency }}</td><td><span class="pill {{ p.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ p.status }}</span></td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="hd">Token usage <span class="meta">by capability · 24h</span></div><div class="bd"><div id="ch-aip-tokens" style="height:250px"></div></div></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipRag }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="RAG Knowledge Base" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card">
+          <div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div class="field" style="margin:0;flex:1;min-width:240px"><label>Query knowledge base</label><input value="autovacuum starvation high churn tables"></div>
+            <button class="btn sm primary" onClick="{{ reAsk }}">Retrieve</button>
+            <span class="pill ok"><span class="dot"></span>semantic on</span>
+          </div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">KB documents</div><div class="value">128</div><div class="sub">ai_knowledge_base</div></div>
+          <div class="kpi deepgreen"><div class="label">Semantic</div><div class="value">enabled</div><div class="sub">pgvector</div></div>
+          <div class="kpi teal"><div class="label">Embeddings</div><div class="value">bge-small</div><div class="sub">FastEmbed</div></div>
+          <div class="kpi purple"><div class="label">Top-k retrieval</div><div class="value">42 ms</div><div class="sub">k = 6</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Retrieved documents <span class="meta">rag_retriever.retrieve · GET /api/v1/ai/rag/kb</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>ID</th><th>Title</th><th>Category</th><th class="num">Score</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ docs }}" as="d" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ d.id }}</td><td class="txt-xs">{{ d.title }}</td><td class="txt-xs muted">{{ d.cat }}</td><td class="num mono txt-xs">{{ d.score }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipEvidence }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Evidence Packs" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Evidence packs</div><div class="value">32</div><div class="sub">one per recommendation</div></div>
+          <div class="kpi teal"><div class="label">With RCA</div><div class="value">28</div><div class="sub">root cause captured</div></div>
+          <div class="kpi green"><div class="label">Signed</div><div class="value">24</div><div class="sub">integrity verified</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Evidence pack · REC-1042 <span class="meta">ai_recommendation.evidence + ai_action_audit</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:12px">
+            <div><div class="txt-xs" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a8fa3">Finding</div><div class="txt-xs" style="margin-top:4px">orders_db.line_items dead-tuple ratio 38% — autovacuum starved by cost limit during 14:00 write peak.</div></div>
+            <div><div class="txt-xs" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a8fa3">Root cause</div><div class="txt-xs" style="margin-top:4px">autovacuum_vacuum_cost_limit (200) too low for churn rate; vacuum falls behind faster than it reclaims.</div></div>
+            <div><div class="txt-xs" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a8fa3">Evidence</div>
+              <div class="bd" style="padding:0;overflow-x:auto;margin-top:6px">
+                <table class="table" style="width:100%">
+                  <thead><tr><th>Signal</th><th>Value</th><th>Source</th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{ evidenceRows }}" as="e" hint-placeholder-count="4">
+                      <tr><td class="txt-xs">{{ e.signal }}</td><td class="mono txt-xs">{{ e.value }}</td><td class="txt-xs muted">{{ e.source }}</td></tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div><div class="txt-xs" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a8fa3">Audit history</div>
+              <div style="display:flex;flex-direction:column;gap:0;margin-top:6px">
+                <sc-for list="{{ evidenceAudit }}" as="a" hint-placeholder-count="3">
+                  <div style="display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid #f2f3f7"><span class="pill {{ a.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.action }}</span><div class="txt-xs muted" style="flex:1">{{ a.sub }}</div><div class="mono txt-xs muted">{{ a.when }}</div></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipAudit }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI Audit Logs" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Audit entries</div><div class="value">120</div><div class="sub">ai_action_audit</div></div>
+          <div class="kpi green"><div class="label">Analyze actions</div><div class="value">96</div><div class="sub">read-only</div></div>
+          <div class="kpi orange"><div class="label">Approvals</div><div class="value">18</div><div class="sub">human decisions</div></div>
+          <div class="kpi red"><div class="label">Blocked</div><div class="value">6</div><div class="sub">SHADOW guard</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">AI action audit <span class="meta">GET /api/v1/ai/audit · newest first</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>When</th><th>Action</th><th>Recommendation</th><th>Status</th><th>Actor</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ aiAuditRows }}" as="a" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ a.when }}</td><td class="txt-xs" style="font-weight:600">{{ a.action }}</td><td class="mono txt-xs">{{ a.rec }}</td><td><span class="pill {{ a.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ a.status }}</span></td><td class="mono txt-xs">{{ a.actor }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAipGov }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI Governance" style="display:flex;flex-direction:column;gap:12px">
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi deepgreen"><div class="label">Mutation policy</div><div class="value">fail-closed</div><div class="sub">SHADOW enforced</div></div>
+          <div class="kpi navy"><div class="label">Guardrails</div><div class="value">7 / 7</div><div class="sub">active</div></div>
+          <div class="kpi teal"><div class="label">Approval quorum</div><div class="value">2 / 3</div><div class="sub">DBA</div></div>
+          <div class="kpi orange"><div class="label">Policy exceptions</div><div class="value">0</div><div class="sub">last 30 d</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Governance guardrails <span class="meta">agentic mutation path inventory</span></div>
+          <div class="bd" style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ govRows }}" as="g" hint-placeholder-count="6">
+              <div style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #f2f3f7">
+                <span class="pill {{ g.tone }}" style="white-space:nowrap"><span class="dot"></span>{{ g.state }}</span>
+                <div style="flex:1;min-width:0"><div class="txt-xs" style="font-weight:600">{{ g.title }}</div><div class="muted txt-xs">{{ g.sub }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>UAT stage SHADOW — monitoring live, agentic mutations disabled.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "console", group: "ai", ph: null, tick: 0 };
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "ai") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  charts = {};
+
+  renderVals() {
+    var self = this;
+    var tab = this.state.tab;
+    var defs = [["console", "AI Ops Console"], ["nlsql", "Ask Your Database"], ["vector", "Vector & RAG"], ["agents", "Agent Governance"], ["branching", "Branching & Forks"], ["agent", "AI Agent"], ["sqlinsight", "SQL Insight"], ["assistant", "Assistant"]];
+    var titles = {
+      console: ["AI Operations", "Provider, agent and RAG summary for the Patroni cluster"],
+      nlsql: ["Ask Your Database", "Natural language to guarded read-only SQL"],
+      vector: ["Vector & RAG Monitor", "Knowledge base, embeddings and retrieval health"],
+      agents: ["AI Agent Governance", "Runs, triggers and the governance audit trail"],
+      branching: ["Branching & Forks", "Live replication topology — slots, standbys, publications"],
+      agent: ["AI Agent", "Recommendations, approvals and run history — /api/ai-agent"],
+      sqlinsight: ["SQL Insight", "Live Active Session History — pg_stat_activity + pg_stat_statements"],
+      assistant: ["AI Assistant", "Evidence-cited answers with guarded proposed actions"],
+      dbarecs: ["AI DBA Recommendations", "Recommendation engine + parameter advisor — /api/v1/clusters/{id}/recommendations"],
+      aipoverview: ["AI Overview", "Agent, recommendation and incident summary — /api/v1/ai/overview"],
+      aipinbox: ["Recommendations Inbox", "Filterable recommendation queue — /api/v1/ai/recommendations"],
+      aipsched: ["Agent Scheduler", "Agent runs and triggers — /api/v1/ai/agents"],
+      aipexec: ["Controlled Executor", "Approved recommendations staged for guarded execution — SHADOW"],
+      aipapprovals: ["DBA Approvals", "Approve / reject queue — /api/v1/ai/recommendations/{id}/approve"],
+      aipgateway: ["Model Gateway", "Provider chain and model status — /api/v1/ai/model-gateway/status"],
+      aiprag: ["RAG Knowledge Base", "Semantic retrieval over ai_knowledge_base — /api/v1/ai/rag/kb"],
+      aipevidence: ["Evidence Packs", "Finding, root cause and audit history — /api/v1/ai/evidence-packs/{id}"],
+      aipaudit: ["AI Audit Logs", "AI action audit trail — /api/v1/ai/audit"],
+      aipgov: ["AI Governance", "Mutation guardrails and approval policy — fail-closed in SHADOW"]
+    };
+    var now = new Date();
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "ai" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph;
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showConsole: tab === "console", showNlsql: tab === "nlsql", showVector: tab === "vector",
+      showAgents: tab === "agents", showBranching: tab === "branching",
+      showAgent: tab === "agent", showSqlInsight: tab === "sqlinsight", showAssistant: tab === "assistant",
+      showDbaRecs: tab === "dbarecs", showAipOverview: tab === "aipoverview", showAipInbox: tab === "aipinbox",
+      showAipSched: tab === "aipsched", showAipExec: tab === "aipexec", showAipApprovals: tab === "aipapprovals",
+      showAipGateway: tab === "aipgateway", showAipRag: tab === "aiprag", showAipEvidence: tab === "aipevidence",
+      showAipAudit: tab === "aipaudit", showAipGov: tab === "aipgov",
+      dbarecSummary: { total: "32", pending: "18", high: "9" },
+      aipAgent: { state: "idle", scheduler: "on", lastRun: "ok", lastRunWhen: "14 m ago" },
+      gateway: { provider: "anthropic", model: "claude-sonnet", available: "up" },
+      dbaRecRows: [
+        { severity: "critical", sevTone: "danger", category: "vacuum", finding: "orders_db.line_items dead-tuple ratio 38%", rootCause: "autovacuum_vacuum_cost_limit too low for churn rate during 14:00 write peak", object: "line_items", confidence: "92%", status: "pending", statusTone: "warn" },
+        { severity: "high", sevTone: "danger", category: "replication", finding: "Replay lag exceeded 30 s during checkpoint spike", rootCause: "max_wal_size too small — checkpoint storms stall standby replay", object: "dr-pgcluster-uae-1", confidence: "88%", status: "pending", statusTone: "warn" },
+        { severity: "high", sevTone: "danger", category: "index", finding: "Unused index idx_payments_legacy_ref (2.1 GB)", rootCause: "Zero scans in 30 days; write amplification on every payments insert", object: "payments_db", confidence: "95%", status: "approved", statusTone: "ok" },
+        { severity: "medium", sevTone: "warn", category: "connection", finding: "PgBouncer pool saturation 91% on orders_db", rootCause: "default_pool_size below concurrent app worker count at peak", object: "pgbouncer-orders", confidence: "81%", status: "pending", statusTone: "warn" },
+        { severity: "medium", sevTone: "warn", category: "performance", finding: "Plan flip on query 4821 — seq scan replacing index scan", rootCause: "Stale statistics after bulk load; ndistinct underestimated", object: "inventory_db", confidence: "74%", status: "rejected", statusTone: "danger" },
+        { severity: "low", sevTone: "info", category: "checkpoint", finding: "checkpoint_completion_target raise to 0.9", rootCause: "Write bursts concentrated at checkpoint start", object: "cluster", confidence: "97%", status: "executed", statusTone: "ok" }
+      ],
+      paramRows: [
+        { name: "shared_buffers", cur: "16GB", rec: "32GB", apply: "restart", applyTone: "warn", rationale: "25% of 128 GiB container RAM per sizing rule" },
+        { name: "effective_cache_size", cur: "48GB", rec: "96GB", apply: "reload", applyTone: "ok", rationale: "75% of RAM — planner cost signal only" },
+        { name: "work_mem", cur: "16MB", rec: "64MB", apply: "reload", applyTone: "ok", rationale: "RAM / (max_connections × 4) with 32-core headroom" },
+        { name: "maintenance_work_mem", cur: "512MB", rec: "2GB", apply: "reload", applyTone: "ok", rationale: "Faster vacuum/index builds; capped at 2 GB" },
+        { name: "max_wal_size", cur: "2GB", rec: "8GB", apply: "reload", applyTone: "ok", rationale: "Spread checkpoints — addresses replay-lag finding" },
+        { name: "autovacuum_vacuum_cost_limit", cur: "200", rec: "1000", apply: "reload", applyTone: "ok", rationale: "Keep pace with line_items churn" }
+      ],
+      execRows: [
+        { title: "Drop unused index idx_payments_legacy_ref", category: "index", action: "DROP INDEX CONCURRENTLY idx_payments_legacy_ref", reversible: "yes", revTone: "ok", approval: "approved 2/2" },
+        { title: "Raise autovacuum cost limit", category: "vacuum", action: "ALTER SYSTEM SET autovacuum_vacuum_cost_limit = 1000", reversible: "yes", revTone: "ok", approval: "approved 2/2" },
+        { title: "Raise max_wal_size to 8GB", category: "checkpoint", action: "ALTER SYSTEM SET max_wal_size = '8GB'", reversible: "yes", revTone: "ok", approval: "approved 2/2" },
+        { title: "Resize PgBouncer orders pool", category: "connection", action: "default_pool_size 40 → 60 (pgbouncer.ini)", reversible: "yes", revTone: "ok", approval: "approved 2/2" }
+      ],
+      approvalRows: [
+        { severity: "critical", sevTone: "danger", finding: "Vacuum tuning for orders_db.line_items", object: "line_items", by: "agent:vacuum-advisor", age: "12 m" },
+        { severity: "high", sevTone: "danger", finding: "Raise max_wal_size to spread checkpoints", object: "cluster", by: "agent:checkpoint-watch", age: "26 m" },
+        { severity: "medium", sevTone: "warn", finding: "PgBouncer pool resize for orders_db", object: "pgbouncer-orders", by: "agent:pool-monitor", age: "2 h" },
+        { severity: "medium", sevTone: "warn", finding: "ANALYZE inventory_db after bulk load", object: "inventory_db", by: "agent:plan-sentinel", age: "3 h" },
+        { severity: "low", sevTone: "info", finding: "Enable log_autovacuum_min_duration", object: "cluster", by: "agent:vacuum-advisor", age: "5 h" }
+      ],
+      providerRows: [
+        { provider: "anthropic", model: "claude-sonnet", role: "primary", latency: "310 ms", tone: "ok", status: "available" },
+        { provider: "ollama", model: "qwen2.5:14b", role: "fallback", latency: "1.8 s", tone: "info", status: "standby" },
+        { provider: "fastembed", model: "bge-small-en", role: "embeddings", latency: "12 ms", tone: "ok", status: "available" }
+      ],
+      evidenceRows: [
+        { signal: "dead_tuple_ratio", value: "38.0%", source: "pg_stat_user_tables" },
+        { signal: "autovacuum_count (7d)", value: "3", source: "pg_stat_user_tables" },
+        { signal: "n_dead_tup", value: "412,338", source: "pg_stat_user_tables" },
+        { signal: "cost_limit_exhaustion", value: "94% of cycles", source: "collector · vacuum trace" }
+      ],
+      evidenceAudit: [
+        { action: "created", tone: "info", sub: "generated by agent run #1042", when: "22:10" },
+        { action: "analyzed", tone: "ok", sub: "RCA composed with 4 evidence signals", when: "22:11" },
+        { action: "pending", tone: "warn", sub: "awaiting DBA approval (quorum 2)", when: "22:11" }
+      ],
+      aiAuditRows: [
+        { when: "22:11:38", action: "recommendation-created", rec: "REC-1042", tone: "ok", status: "complete", actor: "agent:vacuum-advisor" },
+        { when: "21:56:47", action: "anomaly-analyzed", rec: "REC-1041", tone: "ok", status: "complete", actor: "agent:replication-watch" },
+        { when: "21:00:02", action: "rca-draft", rec: "INC-0231", tone: "ok", status: "complete", actor: "agent:rca-composer" },
+        { when: "20:58:14", action: "approve", rec: "REC-1038", tone: "ok", status: "complete", actor: "dba" },
+        { when: "20:10:09", action: "execute", rec: "REC-1035", tone: "warn", status: "blocked", actor: "SHADOW guard" },
+        { when: "19:11:21", action: "agent-run", rec: "—", tone: "ok", status: "complete", actor: "scheduler" }
+      ],
+      govRows: [
+        { state: "on", tone: "ok", title: "Fail-closed mutation guard", sub: "All write paths return 403 in SHADOW mode" },
+        { state: "on", tone: "ok", title: "DBA approval quorum (2 of 3)", sub: "No recommendation executes without two approvals" },
+        { state: "on", tone: "ok", title: "Reversibility requirement", sub: "Executor only accepts actions with a rollback plan" },
+        { state: "on", tone: "ok", title: "Read-only SQL sandbox", sub: "Assistant restricted to SELECT / WITH statements" },
+        { state: "on", tone: "ok", title: "Evidence-pack requirement", sub: "Every recommendation carries signals + RCA" },
+        { state: "on", tone: "ok", title: "Append-only AI audit", sub: "ai_action_audit records every agent step" },
+        { state: "on", tone: "ok", title: "Provider allow-list", sub: "Only registered gateway providers may be called" }
+      ],
+      agentRecs: [
+        { created: "2026-07-19 22:10", severity: "CRITICAL", sevTone: "danger", category: "VACUUM", status: "PENDING", statusTone: "warn", finding: "orders_db.line_items dead tuple ratio 38% — autovacuum starved by cost limit", object: "line_items", confidence: "92%" },
+        { created: "2026-07-19 21:58", severity: "HIGH", sevTone: "danger", category: "REPLICATION", status: "PENDING", statusTone: "warn", finding: "dr-pgcluster-uae-1 replay lag exceeded 30s during checkpoint spike", object: "dr-pgcluster-uae-1", confidence: "88%" },
+        { created: "2026-07-19 21:40", severity: "HIGH", sevTone: "danger", category: "INDEX", status: "APPROVED", statusTone: "ok", finding: "Unused index idx_payments_legacy_ref (2.1 GB), zero scans in 30 days", object: "payments_db", confidence: "95%" },
+        { created: "2026-07-19 20:15", severity: "MEDIUM", sevTone: "warn", category: "CONNECTION", status: "PENDING", statusTone: "warn", finding: "PgBouncer pool saturation 91% on orders_db during 14:00 peak", object: "pgbouncer-orders", confidence: "81%" },
+        { created: "2026-07-19 19:02", severity: "MEDIUM", sevTone: "warn", category: "PERFORMANCE", status: "REJECTED", statusTone: "danger", finding: "Plan flip on query 4821 — seq scan replacing index scan", object: "inventory_db", confidence: "74%" },
+        { created: "2026-07-19 17:30", severity: "LOW", sevTone: "info", category: "PERFORMANCE", status: "EXECUTED", statusTone: "ok", finding: "checkpoint_completion_target raised to 0.9", object: "cluster", confidence: "97%" }
+      ],
+      agentRuns: [
+        { id: "#1042", trigger: "scheduled", status: "COMPLETED", tone: "ok", started: "22:10:04", finished: "22:11:38", summary: "3 findings · 1 critical" },
+        { id: "#1041", trigger: "anomaly", status: "COMPLETED", tone: "ok", started: "21:55:12", finished: "21:56:47", summary: "replay lag anomaly analyzed" },
+        { id: "#1040", trigger: "manual", status: "COMPLETED", tone: "ok", started: "20:58:30", finished: "21:00:02", summary: "RCA draft for INC-0231" },
+        { id: "#1039", trigger: "scheduled", status: "FAILED", tone: "danger", started: "20:10:01", finished: "20:10:09", summary: "provider timeout — retried OK" },
+        { id: "#1038", trigger: "scheduled", status: "COMPLETED", tone: "ok", started: "19:10:03", finished: "19:11:21", summary: "no new findings" }
+      ],
+      sessions: [
+        { user: "orders_app", db: "orders_db", wait: "IO / DataFileRead", state: "active", active: "4.2s", query: "SELECT * FROM line_items WHERE order_id = ANY($1) FOR UPDATE" },
+        { user: "orders_app", db: "orders_db", wait: "Lock / transactionid", state: "active", active: "2.8s", query: "UPDATE orders SET status = $1 WHERE id = $2" },
+        { user: "etl_batch", db: "payments_db", wait: "CPU", state: "active", active: "12.6s", query: "INSERT INTO settlement_daily SELECT ... FROM payments GROUP BY 1,2" },
+        { user: "reporting", db: "orders_db", wait: "IO / DataFileRead", state: "active", active: "8.1s", query: "SELECT date_trunc('hour', created_at), count(*) FROM orders GROUP BY 1" },
+        { user: "inventory_svc", db: "inventory_db", wait: "LWLock / WALWrite", state: "active", active: "0.9s", query: "UPDATE stock SET qty = qty - $1 WHERE sku = $2" },
+        { user: "postgres", db: "orders_db", wait: "CPU", state: "active", active: "31.4s", query: "autovacuum: VACUUM public.line_items" }
+      ],
+      citations: [
+        { id: "INC-0231", title: "RCA: replay lag during checkpoint storm", score: "0.861" },
+        { id: "RB-0142", title: "Autovacuum starvation on high-churn tables", score: "0.912" },
+        { id: "DOC-0410", title: "pg_profile snapshot interpretation", score: "0.834" },
+        { id: "PM-0067", title: "WAL retention overflow postmortem", score: "0.790" }
+      ],
+      reAsk: function () { self.renderCharts(); },
+      recs: [
+        { severity: "CRITICAL", tone: "danger", category: "Vacuum & Bloat", title: "orders.line_items dead tuples at 38% — autovacuum starved by cost limit", target: "orders_db.line_items", age: "12m", status: "PENDING", statusTone: "warn" },
+        { severity: "HIGH", tone: "danger", category: "Replication", title: "Standby dr-pgcluster-uae-1 replay lag exceeded 30s during checkpoint spike", target: "dr-pgcluster-uae-1", age: "26m", status: "PENDING", statusTone: "warn" },
+        { severity: "HIGH", tone: "danger", category: "Index Health", title: "Unused index idx_payments_legacy_ref (2.1 GB) — zero scans in 30 days", target: "payments_db", age: "1h", status: "APPROVED", statusTone: "ok" },
+        { severity: "MEDIUM", tone: "warn", category: "Connection Pool", title: "PgBouncer pool saturation 91% on orders_db during 14:00 peak", target: "pgbouncer-orders", age: "2h", status: "PENDING", statusTone: "warn" },
+        { severity: "MEDIUM", tone: "warn", category: "Query Plans", title: "Plan flip on top query 4821 — seq scan replacing index scan", target: "inventory_db", age: "3h", status: "REVIEWED", statusTone: "ok" },
+        { severity: "LOW", tone: "ok", category: "Checkpoint Tuning", title: "checkpoint_completion_target raise to 0.9 recommended", target: "cluster", age: "5h", status: "REVIEWED", statusTone: "ok" }
+      ],
+      sqlRows: [
+        { schema: "public", rel: "line_items", dead: "412,338", live: "1,084,220", pct: "38.0" },
+        { schema: "public", rel: "orders", dead: "188,402", live: "2,310,556", pct: "8.2" },
+        { schema: "public", rel: "payments", dead: "121,930", live: "1,732,004", pct: "7.0" },
+        { schema: "public", rel: "inventory_moves", dead: "96,511", live: "3,022,187", pct: "3.2" },
+        { schema: "audit", rel: "event_log", dead: "44,208", live: "9,410,662", pct: "0.5" },
+        { schema: "public", rel: "customers", dead: "12,077", live: "512,340", pct: "2.4" }
+      ],
+      docs: [
+        { id: "RB-0142", title: "Autovacuum starvation on high-churn tables", cat: "Runbook", score: "0.912" },
+        { id: "RB-0088", title: "Patroni failover checklist — sync standby promotion", cat: "Runbook", score: "0.887" },
+        { id: "INC-0231", title: "RCA: replay lag during checkpoint storm (2026-05-14)", cat: "Incident", score: "0.861" },
+        { id: "DOC-0410", title: "pg_profile snapshot interpretation guide", cat: "Guide", score: "0.834" },
+        { id: "RB-0197", title: "PgBouncer pool sizing for OLTP peaks", cat: "Runbook", score: "0.812" },
+        { id: "PM-0067", title: "Postmortem: WAL retention overflow on logical slot", cat: "Postmortem", score: "0.790" }
+      ],
+      runs: [
+        { status: "complete", tone: "ok", agent: "vacuum-advisor", when: "22:10", trigger: "scheduled" },
+        { status: "complete", tone: "ok", agent: "replication-watch", when: "22:00", trigger: "scheduled" },
+        { status: "pending", tone: "warn", agent: "index-advisor", when: "21:55", trigger: "anomaly" },
+        { status: "complete", tone: "ok", agent: "pool-monitor", when: "21:45", trigger: "scheduled" },
+        { status: "failed", tone: "danger", agent: "plan-sentinel", when: "21:32", trigger: "incident" },
+        { status: "complete", tone: "ok", agent: "vacuum-advisor", when: "21:10", trigger: "scheduled" },
+        { status: "complete", tone: "ok", agent: "rca-composer", when: "20:58", trigger: "manual" },
+        { status: "complete", tone: "ok", agent: "replication-watch", when: "20:45", trigger: "scheduled" }
+      ],
+      audit: [
+        { when: "2026-07-19 22:10", action: "ANALYZE_RECOMMENDATION", status: "complete", tone: "ok", actor: "agent:vacuum-advisor" },
+        { when: "2026-07-19 21:58", action: "RCA_DRAFT", status: "complete", tone: "ok", actor: "agent:rca-composer" },
+        { when: "2026-07-19 21:55", action: "INDEX_DROP_PLAN", status: "pending", tone: "warn", actor: "agent:index-advisor" },
+        { when: "2026-07-19 21:32", action: "PLAN_CAPTURE", status: "failed", tone: "danger", actor: "agent:plan-sentinel" },
+        { when: "2026-07-19 20:58", action: "KB_INGEST", status: "complete", tone: "ok", actor: "dba@local" },
+        { when: "2026-07-19 20:12", action: "FAILOVER_DRILL_PLAN", status: "rejected", tone: "danger", actor: "quorum:2/3" }
+      ],
+      slots: [
+        { name: "branch_reporting", db: "orders_db", active: "active", tone: "ok", wal: "reserved", retained: "184 MB" },
+        { name: "branch_analytics", db: "orders_db", active: "active", tone: "ok", wal: "reserved", retained: "96 MB" },
+        { name: "cdc_debezium", db: "payments_db", active: "active", tone: "ok", wal: "reserved", retained: "212 MB" },
+        { name: "branch_ml_features", db: "inventory_db", active: "active", tone: "ok", wal: "reserved", retained: "58 MB" },
+        { name: "branch_qa_snapshot", db: "orders_db", active: "inactive", tone: "warn", wal: "extended", retained: "1.2 GB" },
+        { name: "branch_archive", db: "audit_db", active: "inactive", tone: "warn", wal: "extended", retained: "640 MB" }
+      ]
+    };
+  }
+
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { console: 1, nlsql: 1, vector: 1, agents: 1, branching: 1, agent: 1, sqlinsight: 1, assistant: 1, dbarecs: 1, aipoverview: 1, aipinbox: 1, aipsched: 1, aipexec: 1, aipapprovals: 1, aipgateway: 1, aiprag: 1, aipevidence: 1, aipaudit: 1, aipgov: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    if (this.props.liveUpdates ?? true) {
+      this._live = setInterval(function () { self.liveTick(); }, 3000);
+    }
+    this.scheduleCharts();
+  }
+  componentWillUnmount() {
+    window.removeEventListener("resize", this._resize);
+    clearInterval(this._clock); clearInterval(this._live);
+    this.disposeAll();
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { console: "ch-activity", nlsql: "ch-nlsql", vector: "ch-methods", agents: "ch-runs", branching: "ch-lag", agent: "ch-approval", sqlinsight: "ch-wait", aipoverview: "ch-aip-sev", aipgateway: "ch-aip-tokens" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  disposeAll() {
+    Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {};
+    Object.values(this._ros || {}).forEach(function (r) { r.disconnect(); }); this._ros = {};
+  }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el);
+    c.setOption(option);
+    this.charts[id] = c;
+    var self = this;
+    this._ros = this._ros || {};
+    if (this._ros[id]) this._ros[id].disconnect();
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function () { if (self.charts[id]) self.charts[id].resize(); });
+      ro.observe(el);
+      this._ros[id] = ro;
+    }
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 44, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab, b = this.base.bind(this);
+    var hours = [];
+    for (var i = 23; i >= 0; i--) { var d = new Date(Date.now() - i * 3600e3); hours.push(String(d.getHours()).padStart(2, "0") + ":00"); }
+    function wave(base, amp, jitter) { return hours.map(function (_, i) { return Math.max(0, Math.round(base + amp * Math.sin(i / 3.4) + (Math.random() - 0.5) * jitter)); }); }
+    if (tab === "console") {
+      this._activityData = { hours: hours.slice(), recs: wave(6, 3, 3), inc: wave(1, 1, 1.6), score: hours.map(function (_, i) { return +(0.3 + 0.25 * Math.sin(i / 4) + Math.random() * 0.15).toFixed(2); }) };
+      this.mk("ch-activity", Object.assign(b(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: this._activityData.hours, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: [{ type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } }, { type: "value", max: 1, splitLine: { show: false } }],
+        series: [
+          { name: "Recommendations", type: "line", smooth: true, showSymbol: false, data: this._activityData.recs, areaStyle: { opacity: 0.12 }, lineStyle: { width: 2.5 } },
+          { name: "Incidents", type: "line", smooth: true, showSymbol: false, data: this._activityData.inc, lineStyle: { width: 2, color: "#dc3545" }, itemStyle: { color: "#dc3545" } },
+          { name: "Anomaly score", type: "line", yAxisIndex: 1, smooth: true, showSymbol: false, data: this._activityData.score, lineStyle: { width: 1.5, type: "dashed", color: "#f59e0b" }, itemStyle: { color: "#f59e0b" } }
+        ]
+      }));
+      this.mk("ch-severity", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        series: [{ type: "pie", radius: ["52%", "74%"], center: ["50%", "52%"],
+          label: { formatter: "{b}\n{c}", fontSize: 11 },
+          data: [
+            { name: "Critical", value: 2, itemStyle: { color: "#dc3545" } },
+            { name: "High", value: 7, itemStyle: { color: "#f4511e" } },
+            { name: "Medium", value: 14, itemStyle: { color: "#f59e0b" } },
+            { name: "Low", value: 9, itemStyle: { color: "#107c10" } }
+          ] }],
+        graphic: [{ type: "text", left: "center", top: "44%", style: { text: "32", fontSize: 26, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "58%", style: { text: "open", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-category", Object.assign(b(), {
+        grid: { left: 120, right: 30, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["Vacuum & Bloat", "Index Health", "Connection Pool", "Replication", "Query Plans", "Checkpoint"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [9, 7, 5, 4, 4, 3], barWidth: 14, itemStyle: { color: "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b" } }]
+      }));
+      this.mk("ch-latency", Object.assign(b(), {
+        xAxis: { type: "category", data: hours, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        series: [{ name: "p95 ms", type: "line", smooth: true, showSymbol: false, data: wave(48, 14, 12), lineStyle: { width: 2.5, color: "#17a2b8" }, itemStyle: { color: "#17a2b8" }, areaStyle: { opacity: 0.1, color: "#17a2b8" },
+          markLine: { symbol: "none", lineStyle: { color: "#dc3545", type: "dashed" }, label: { formatter: "SLO 120ms", position: "insideEndTop", fontSize: 10 }, data: [{ yAxis: 120 }] } }]
+      }));
+    } else if (tab === "nlsql") {
+      this.mk("ch-nlsql", Object.assign(b(), {
+        grid: { left: 110, right: 50, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["line_items", "orders", "payments", "inventory_moves", "event_log", "customers"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [412338, 188402, 121930, 96511, 44208, 12077], barWidth: 14, itemStyle: { color: "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", formatter: function (p) { return p.value.toLocaleString(); } } }]
+      }));
+      this.mk("ch-nlsqldb", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "46%"], label: { show: false },
+          data: [{ name: "orders_db", value: 9 }, { name: "payments_db", value: 5 }, { name: "inventory_db", value: 4 }] }],
+        graphic: [{ type: "text", left: "center", top: "40%", style: { text: "18", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "52%", style: { text: "rows", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+    } else if (tab === "vector") {
+      this.mk("ch-methods", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "Semantic", value: 86, itemStyle: { color: "#7c3aed" } }, { name: "Keyword", value: 30, itemStyle: { color: "#17a2b8" } }, { name: "Hybrid", value: 12, itemStyle: { color: "#f59e0b" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "128", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "documents", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-sources", Object.assign(b(), {
+        grid: { left: 120, right: 40, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["runbooks", "incidents", "pg_docs", "postmortems", "architecture", "tuning-guides"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [34, 28, 22, 18, 14, 12], barWidth: 14, itemStyle: { color: "#17a2b8", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b" } }]
+      }));
+    } else if (tab === "agents") {
+      this.mk("ch-runs", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "Complete", value: 41, itemStyle: { color: "#107c10" } }, { name: "Pending", value: 4, itemStyle: { color: "#f59e0b" } }, { name: "Failed", value: 3, itemStyle: { color: "#dc3545" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "48", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "runs / 24h", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-triggers", Object.assign(b(), {
+        grid: { left: 90, right: 40, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["Scheduled", "Anomaly", "Manual", "Incident"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [30, 9, 6, 3], barWidth: 16, itemStyle: { color: "#7c3aed", borderRadius: [0, 8, 8, 0] }, label: { show: true, position: "right", color: "#5b6b7b" } }]
+      }));
+    } else if (tab === "branching") {
+      var pts = [];
+      for (var j = 0; j < 72; j++) { var t = new Date(Date.now() - (72 - j) * 5 * 60e3); pts.push(String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0")); }
+      function lag(base, spike) { return pts.map(function (_, i) { var v = base + Math.random() * base * 0.4; if (i > 40 && i < 46) v += spike * (1 - Math.abs(i - 43) / 3); return Math.round(v); }); }
+      this.mk("ch-lag", Object.assign(b(), {
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        xAxis: { type: "category", data: pts, boundaryGap: false, axisLine: { lineStyle: { color: "#d8dbe4" } }, axisLabel: { interval: 17 } },
+        yAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } }, axisLabel: { formatter: function (v) { return v >= 1048576 ? (v / 1048576).toFixed(0) + " MB" : (v / 1024).toFixed(0) + " KB"; } } },
+        series: [
+          { name: "pg-sync-1 (sync)", type: "line", smooth: true, showSymbol: false, data: lag(45000, 120000), lineStyle: { width: 2, color: "#107c10" }, itemStyle: { color: "#107c10" }, areaStyle: { opacity: 0.08, color: "#107c10" } },
+          { name: "dr-pgcluster-uae-1 (async)", type: "line", smooth: true, showSymbol: false, data: lag(240000, 9000000), lineStyle: { width: 2, color: "#f59e0b" }, itemStyle: { color: "#f59e0b" }, areaStyle: { opacity: 0.08, color: "#f59e0b" } }
+        ]
+      }));
+      this.mk("ch-sync", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "sync", value: 1, itemStyle: { color: "#107c10" } }, { name: "async", value: 1, itemStyle: { color: "#f59e0b" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "2", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "standbys", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+    } else if (tab === "agent") {
+      this.mk("ch-approval", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "PENDING", value: 9, itemStyle: { color: "#f59e0b" } }, { name: "APPROVED", value: 6, itemStyle: { color: "#107c10" } }, { name: "EXECUTED", value: 11, itemStyle: { color: "#7c3aed" } }, { name: "REJECTED", value: 4, itemStyle: { color: "#dc3545" } }, { name: "FAILED", value: 2, itemStyle: { color: "#6c757d" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "32", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "recommendations", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-agentsev", Object.assign(b(), {
+        grid: { left: 100, right: 40, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [{ value: 2, itemStyle: { color: "#dc3545" } }, { value: 7, itemStyle: { color: "#f4511e" } }, { value: 14, itemStyle: { color: "#f59e0b" } }, { value: 6, itemStyle: { color: "#107c10" } }, { value: 3, itemStyle: { color: "#17a2b8" } }], barWidth: 16, itemStyle: { borderRadius: [0, 8, 8, 0] }, label: { show: true, position: "right", color: "#5b6b7b" } }]
+      }));
+    } else if (tab === "aipoverview") {
+      this.mk("ch-aip-sev", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: [
+          { name: "critical", value: 3, itemStyle: { color: "#dc3545" } },
+          { name: "high", value: 6, itemStyle: { color: "#f4511e" } },
+          { name: "medium", value: 14, itemStyle: { color: "#f59e0b" } },
+          { name: "low", value: 9, itemStyle: { color: "#17a2b8" } }
+        ] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "32", fontSize: 20, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "open", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-aip-appr", Object.assign(b(), {
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        grid: { left: 90, right: 40, top: 10, bottom: 20 },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["pending", "approved", "executed", "rejected"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [{ type: "bar", barWidth: 16, itemStyle: { borderRadius: [0, 8, 8, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10 }, data: [
+          { value: 18, itemStyle: { color: "#f59e0b" } },
+          { value: 6, itemStyle: { color: "#107c10" } },
+          { value: 5, itemStyle: { color: "#17a2b8" } },
+          { value: 3, itemStyle: { color: "#dc3545" } }
+        ] }]
+      }));
+    } else if (tab === "aipgateway") {
+      this.mk("ch-aip-tokens", Object.assign(b(), {
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        legend: { top: 0, icon: "circle", itemWidth: 8 },
+        grid: { left: 110, right: 50, top: 30, bottom: 20 },
+        xAxis: { type: "value", name: "k tokens", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, data: ["recommendations", "RCA drafts", "assistant Q&A", "NL→SQL", "embeddings"], axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+        series: [
+          { name: "input", type: "bar", stack: "t", barWidth: 14, data: [428, 260, 184, 96, 310], itemStyle: { color: "#7c3aed" } },
+          { name: "output", type: "bar", stack: "t", barWidth: 14, data: [122, 190, 84, 22, 0], itemStyle: { color: "#17a2b8", borderRadius: [0, 7, 7, 0] } }
+        ]
+      }));
+    } else if (tab === "sqlinsight") {
+      this.mk("ch-wait", Object.assign(b(), {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+        series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false },
+          data: [{ name: "IO", value: 5, itemStyle: { color: "#17a2b8" } }, { name: "CPU", value: 4, itemStyle: { color: "#107c10" } }, { name: "Lock", value: 2, itemStyle: { color: "#dc3545" } }, { name: "LWLock", value: 2, itemStyle: { color: "#f59e0b" } }, { name: "Client", value: 1, itemStyle: { color: "#a78bfa" } }] }],
+        graphic: [{ type: "text", left: "center", top: "38%", style: { text: "14", fontSize: 24, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                  { type: "text", left: "center", top: "50%", style: { text: "active sessions", fontSize: 11, fill: "#8a8fa3" } }]
+      }));
+      this.mk("ch-topsql", Object.assign(b(), {
+        grid: { left: 170, right: 60, top: 10, bottom: 20 },
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+        yAxis: { type: "category", inverse: true, axisLabel: { fontFamily: "monospace", fontSize: 10 }, data: ["SELECT * FROM line_items WHERE…", "INSERT INTO settlement_daily…", "SELECT date_trunc('hour',…)…", "UPDATE orders SET status…", "UPDATE stock SET qty…", "SELECT o.*, li.* FROM orders…"], axisLine: { show: false }, axisTick: { show: false } },
+        series: [{ type: "bar", data: [184220, 121480, 96733, 61240, 44872, 31208], barWidth: 14, itemStyle: { color: "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", formatter: function (p) { return (p.value / 1000).toFixed(0) + "k ms"; } } }]
+      }));
+    }
+  }
+  liveTick() {
+    var c = this.charts["ch-activity"], d = this._activityData;
+    if (!c || !d || this.state.tab !== "console") return;
+    var t = new Date();
+    d.hours.push(String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0"));
+    d.hours.shift();
+    d.recs.push(Math.max(0, d.recs[d.recs.length - 1] + Math.round((Math.random() - 0.5) * 3))); d.recs.shift();
+    d.inc.push(Math.max(0, Math.round(Math.random() * 2.2))); d.inc.shift();
+    d.score.push(+(Math.min(1, Math.max(0, d.score[d.score.length - 1] + (Math.random() - 0.5) * 0.12))).toFixed(2)); d.score.shift();
+    c.setOption({ xAxis: { data: d.hours }, series: [{ data: d.recs }, { data: d.inc }, { data: d.score }] });
+  }
+}
+</script>
+</body>
+</html>

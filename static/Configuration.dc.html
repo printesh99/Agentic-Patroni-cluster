@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+html, body { margin: 0; padding: 0; background: #f4f5f7; }
+a { color: #7c3aed; text-decoration: none; }
+a:hover { color: #5b21b6; }
+@keyframes cfPulse { 0% { opacity: 1; } 50% { opacity: .35; } 100% { opacity: 1; } }
+.grid-2 > .card, .grid-3 > .card, .grid-4 > .card, .tile-row > .kpi { min-width: 0; }
+.card .bd > div[id^="cf-"] { width: 100%; min-width: 0; overflow: hidden; }
+.cfg-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; align-items:end; }
+.cfg-grid .field.wide { grid-column:1 / -1; }
+.hero { border-radius:12px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; color:#fff; }
+.hero .kicker { font-size:11px; text-transform:uppercase; letter-spacing:.08em; opacity:.8; }
+.hero .htitle { font-family:'Times New Roman',Times,serif; font-size:24px; margin-top:2px; }
+.hero .hdetail { font-size:12px; opacity:.9; margin-top:4px; max-width:640px; }
+.hero-side { display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+</style>
+<link rel="stylesheet" href="static/styles.css">
+<script src="static/vendor/echarts.min.js"></script>
+<script src="nav-data.js"></script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <div class="topbar" data-screen-label="Topbar">
+    <div class="topbar-brand">
+      <div class="topbar-wordmark">
+        <div class="topbar-title">PostgreSQL Enterprise Console</div>
+        <div class="topbar-product">Agentic Patroni Cluster · OpenShift</div>
+      </div>
+    </div>
+    <div class="topbar-crumbs"><span>Console</span><span class="sep">/</span><span class="current">Configuration</span></div>
+    <div class="spacer"></div>
+    <span class="pill warn" title="Agentic mutations disabled"><span class="dot"></span>SHADOW</span>
+    <div class="user-chip" style="margin-left:12px">
+      <div class="avatar">LD</div>
+      <div class="tenant"><strong>Local DBA</strong>platform-admin · uae</div>
+    </div>
+  </div>
+
+  <div class="bandbar" data-screen-label="Modules" style="overflow-x:auto">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="6">
+      <button class="band-btn {{ g.cls }}" onClick="{{ g.onClick }}">{{ g.label }}</button>
+    </sc-for>
+  </div>
+  <div class="tabs" data-screen-label="Module children" style="background:#fff;overflow-x:auto;white-space:nowrap;flex-wrap:nowrap;display:flex">
+    <sc-for list="{{ children }}" as="c" hint-placeholder-count="6">
+      <button class="{{ c.cls }}" onClick="{{ c.onClick }}" style="flex:0 0 auto">{{ c.label }}</button>
+    </sc-for>
+  </div>
+
+  <div class="action-bar">
+    <h1>{{ pageTitle }}</h1>
+    <span class="sub">{{ pageSub }}</span>
+    <div class="grow"></div>
+    <span class="pill danger" style="margin-right:8px"><span class="dot"></span>dry-run + approval only</span>
+    <span class="auto-hint"><span class="dot" style="background:#107c10;animation:cfPulse 2s infinite"></span>last {{ lastRefresh }}</span>
+  </div>
+
+  <div style="flex:1;padding:16px 20px;max-width:1560px;width:100%;margin:0 auto;box-sizing:border-box;display:flex;flex-direction:column;gap:12px">
+
+    <sc-if value="{{ showPlaceholder }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Module placeholder" class="card" style="max-width:720px;margin:40px auto">
+        <div class="hd">{{ phGroup }} · {{ phLabel }}</div>
+        <div class="bd" style="text-align:center;padding:48px 32px">
+          <div style="font-family:'Times New Roman',Times,serif;font-size:26px;color:#212529">{{ phLabel }}</div>
+          <div class="muted txt-xs" style="margin-top:8px;max-width:420px;margin-left:auto;margin-right:auto">This module exists in the console navigation but its panel hasn't been designed here yet.</div>
+          <div style="margin-top:16px"><span class="pill muted"><span class="dot"></span>route: {{ phKey }}</span></div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showParameters }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Server Parameters" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:240px"><label>Search</label><input placeholder="parameter or category"></div>
+          <div class="field" style="margin:0;min-width:160px"><label>Context</label><select><option>all</option><option>postmaster</option><option>sighup</option><option>user</option><option>superuser</option></select></div>
+          <div class="field" style="margin:0;min-width:160px"><label>Restart</label><select><option>all</option><option>pending restart</option></select></div>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>pg_settings</span>
+        </div></div>
+        <div class="hero" style="background:linear-gradient(120deg,#f59e0b,#d97706)">
+          <div><div class="kicker">Configuration</div><div class="htitle">Server Parameters</div><div class="hdetail">Live PostgreSQL GUC inventory from pg_settings. Change requests create dry-run jobs only.</div></div>
+          <div class="hero-side"><span class="pill warn"><span class="dot"></span>3 pending restart</span><span class="pill muted">observed {{ lastRefresh }}</span></div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi navy"><div class="label">Parameters</div><div class="value">341</div><div class="sub">pg_settings</div></div>
+          <div class="kpi teal"><div class="label">Important</div><div class="value">48</div><div class="sub">flagged</div></div>
+          <div class="kpi red"><div class="label">Postmaster</div><div class="value">27</div><div class="sub">restart required</div></div>
+          <div class="kpi orange"><div class="label">Changed from boot</div><div class="value">19</div><div class="sub">non-default</div></div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><div class="hd">Context</div><div class="bd"><div id="cf-context" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Source</div><div class="bd"><div id="cf-source" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Restart posture</div><div class="bd"><div id="cf-restart" style="height:220px"></div></div></div>
+        </div>
+        <div class="card config-action">
+          <div class="hd">Validate parameter change <span class="meta">dry-run only</span></div>
+          <div class="bd"><div class="cfg-grid">
+            <div class="field"><label>Parameter</label><input value="work_mem"></div>
+            <div class="field"><label>Proposed value</label><input value="64MB"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn sm primary" style="width:100%">Validate</button></div>
+            <div class="field wide"><label>Reason</label><input value="Reduce sort spill on reporting workload"></div>
+          </div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Parameter inventory <span class="meta">341 rows</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Parameter</th><th>Value</th><th>Context</th><th>Source</th><th>Restart</th><th>Unit</th><th>Description</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ paramRows }}" as="p" hint-placeholder-count="6">
+                  <tr class="{{ p.rowcls }}"><td class="mono txt-xs">{{ p.name }}</td><td class="mono txt-xs">{{ p.value }}</td><td><span class="pill {{ p.ctxTone }}" style="white-space:nowrap">{{ p.ctx }}</span></td><td class="txt-xs">{{ p.source }}</td><td><span class="pill {{ p.restartTone }}" style="white-space:nowrap">{{ p.restart }}</span></td><td class="txt-xs muted">{{ p.unit }}</td><td class="txt-xs muted" style="max-width:320px">{{ p.desc }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPatroni }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Patroni DCS Config" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn sm primary">Validate DCS Change</button>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>Patroni /config</span>
+        </div></div>
+        <div class="hero" style="background:linear-gradient(120deg,#107c10,#0b5e0b)">
+          <div><div class="kicker">Configuration</div><div class="htitle">Patroni DCS Config</div><div class="hdetail">Live dynamic configuration from Patroni. Apply path is approval-gated and not executed here.</div></div>
+          <div class="hero-side"><span class="pill ok"><span class="dot"></span>available</span><span class="pill ok"><span class="dot"></span>normal</span></div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Leader</div><div class="value">prod-pgcluster-uae-00</div><div class="sub">current primary</div></div>
+          <div class="kpi navy"><div class="label">Loop wait</div><div class="value">10 s</div><div class="sub">DCS poll</div></div>
+          <div class="kpi teal"><div class="label">TTL</div><div class="value">30 s</div><div class="sub">leader lease</div></div>
+          <div class="kpi orange"><div class="label">PG params</div><div class="value">24</div><div class="sub">managed by DCS</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Timing settings</div><div class="bd"><div id="cf-timing" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Maintenance mode</div><div class="bd"><div id="cf-mode" style="height:220px"></div></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">PostgreSQL parameters <span class="meta">managed by DCS</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ dcsParamRows }}" as="d" hint-placeholder-count="6">
+                    <tr><td class="mono txt-xs">{{ d.name }}</td><td class="mono txt-xs">{{ d.value }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Raw DCS config <span class="meta">read-only</span></div>
+            <div class="bd">
+              <pre class="mono txt-xs" style="margin:0;background:#0b1720;color:#d7f5e9;padding:12px;border-radius:8px;overflow:auto;max-height:260px;line-height:1.5">{{ dcsRaw }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showScoped }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Scoped Settings" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin:0;min-width:200px"><label>Role filter</label><input placeholder="optional role"></div>
+          <div class="field" style="margin:0;min-width:200px"><label>Database filter</label><input placeholder="optional database"></div>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>pg_db_role_setting</span>
+        </div></div>
+        <div class="hero" style="background:linear-gradient(120deg,#2a7de1,#1857a8)">
+          <div><div class="kicker">Configuration</div><div class="htitle">{{ scopedTitle }}</div><div class="hdetail">{{ scopedDetail }} Validate actions create dry-run jobs only.</div></div>
+          <div class="hero-side"><span class="pill muted">observed {{ lastRefresh }}</span><span class="pill info">{{ scopedCount }} settings</span></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Settings by role</div><div class="bd"><div id="cf-scoped-role" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Parameters</div><div class="bd"><div id="cf-scoped-param" style="height:230px"></div></div></div>
+        </div>
+        <div class="card config-action">
+          <div class="hd">Validate scoped setting <span class="meta">dry-run only</span></div>
+          <div class="bd"><div class="cfg-grid">
+            <div class="field"><label>Role</label><input placeholder="{{ scopedRolePlaceholder }}"></div>
+            <div class="field"><label>Database</label><input value="ae_tps_uat"></div>
+            <div class="field"><label>Parameter</label><input value="statement_timeout"></div>
+            <div class="field"><label>Value</label><input value="15000"></div>
+            <div class="field wide"><label>Reason</label><input value="Bound long-running reporting statements"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn sm primary" style="width:100%">Validate</button></div>
+          </div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Scoped settings <span class="meta">{{ scopedCount }} rows</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Role</th><th>Database</th><th>Parameter</th><th>Value</th><th>Raw setting</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ scopedRows }}" as="s" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ s.role }}</td><td class="mono txt-xs">{{ s.db }}</td><td class="mono txt-xs">{{ s.param }}</td><td class="mono txt-xs">{{ s.value }}</td><td class="mono txt-xs muted">{{ s.raw }}</td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showMaintenance }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Maintenance Mode" style="display:flex;flex-direction:column;gap:12px">
+        <div class="card"><div class="bd" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn sm primary">Validate Enter</button>
+          <button class="btn sm">Validate Exit</button>
+          <div style="flex:1"></div>
+          <span class="pill muted"><span class="dot"></span>Patroni /config</span>
+        </div></div>
+        <div class="hero" style="background:linear-gradient(120deg,#107c10,#0b5e0b)">
+          <div><div class="kicker">Configuration</div><div class="htitle">Maintenance Mode</div><div class="hdetail">Patroni pause state and guardrails. Validates maintenance actions but does not toggle the cluster.</div></div>
+          <div class="hero-side"><span class="pill ok"><span class="dot"></span>normal</span><span class="pill ok">Patroni reachable</span></div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Mode</div><div class="value">normal</div><div class="sub">auto-failover armed</div></div>
+          <div class="kpi navy"><div class="label">Leader</div><div class="value">prod-pgcluster-uae-00</div><div class="sub">TL 7</div></div>
+          <div class="kpi teal"><div class="label">Members</div><div class="value">3</div><div class="sub">1 leader · 2 standby</div></div>
+          <div class="kpi orange"><div class="label">Config</div><div class="value">available</div><div class="sub">DCS reachable</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Member roles</div><div class="bd"><div id="cf-member-role" style="height:220px"></div></div></div>
+          <div class="card"><div class="hd">Member lag</div><div class="bd"><div id="cf-member-lag" style="height:220px"></div></div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="hd">Members <span class="meta">3 rows</span></div>
+            <div class="bd" style="padding:0;overflow-x:auto">
+              <table class="table" style="width:100%">
+                <thead><tr><th>Name</th><th>Role</th><th>State</th><th class="num">Lag</th><th>Timeline</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ memberRows }}" as="m" hint-placeholder-count="3">
+                    <tr><td class="mono txt-xs">{{ m.name }}</td><td><span class="pill {{ m.tone }}" style="white-space:nowrap">{{ m.role }}</span></td><td class="txt-xs">{{ m.state }}</td><td class="num mono txt-xs">{{ m.lag }}</td><td class="mono txt-xs">{{ m.tl }}</td></tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd">Guardrails <span class="meta">approval required</span></div>
+            <div class="bd" style="display:flex;flex-direction:column;gap:8px;padding:14px 16px">
+              <sc-for list="{{ guardrails }}" as="g" hint-placeholder-count="4">
+                <div style="display:flex;gap:8px;align-items:flex-start"><span style="color:#f59e0b;flex:0 0 auto">⚠</span><span class="txt-xs">{{ g.text }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showDrift }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Parameter Drift" style="display:flex;flex-direction:column;gap:12px">
+        <div class="hero" style="background:linear-gradient(120deg,#dc3545,#a01824)">
+          <div><div class="kicker">Configuration</div><div class="htitle">Parameter Drift</div><div class="hdetail">pg_settings vs Patroni DCS desired state vs saved baseline. Drift = live value differs from intended.</div></div>
+          <div class="hero-side"><span class="pill warn"><span class="dot"></span>5 drifted</span><span class="pill muted">baseline v12 · Jul 14</span></div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi red"><div class="label">Drifted params</div><div class="value">5</div><div class="sub">vs DCS desired</div></div>
+          <div class="kpi orange"><div class="label">Nodes affected</div><div class="value">2</div><div class="sub">prod-pgcluster-uae-01, prod-pgcluster-uae-02</div></div>
+          <div class="kpi navy"><div class="label">Baseline age</div><div class="value">7 d</div><div class="sub">last snapshot</div></div>
+          <div class="kpi green"><div class="label">In sync</div><div class="value">336</div><div class="sub">of 341</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="hd">Drift by category</div><div class="bd"><div id="cf-drift-cat" style="height:230px"></div></div></div>
+          <div class="card"><div class="hd">Drift by node</div><div class="bd"><div id="cf-drift-node" style="height:230px"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Drifted parameters <span class="meta">live vs desired vs baseline</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Parameter</th><th>Node</th><th>Live value</th><th>DCS desired</th><th>Baseline</th><th>Since</th><th>Action</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ driftRows }}" as="d" hint-placeholder-count="5">
+                  <tr><td class="mono txt-xs">{{ d.param }}</td><td class="mono txt-xs">{{ d.node }}</td><td class="mono txt-xs" style="color:#dc3545">{{ d.live }}</td><td class="mono txt-xs">{{ d.desired }}</td><td class="mono txt-xs muted">{{ d.baseline }}</td><td class="txt-xs muted">{{ d.since }}</td><td class="num"><button class="btn ghost sm">Reconcile</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showExtGov }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Extension Governance" style="display:flex;flex-direction:column;gap:12px">
+        <div class="hero" style="background:linear-gradient(120deg,#7c3aed,#5b21b6)">
+          <div><div class="kicker">Configuration</div><div class="htitle">Extension Governance</div><div class="hdetail">Allow-list policy for CREATE EXTENSION across databases. Requests outside the list are blocked and routed to approval.</div></div>
+          <div class="hero-side"><span class="pill ok"><span class="dot"></span>policy enforced</span><span class="pill muted">shared_preload_libraries locked</span></div>
+        </div>
+        <div class="tile-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="kpi green"><div class="label">Allow-listed</div><div class="value">14</div><div class="sub">approved extensions</div></div>
+          <div class="kpi navy"><div class="label">Installed</div><div class="value">11</div><div class="sub">within policy</div></div>
+          <div class="kpi red"><div class="label">Policy violations</div><div class="value">1</div><div class="sub">unlisted, installed</div></div>
+          <div class="kpi orange"><div class="label">Pending requests</div><div class="value">2</div><div class="sub">awaiting DBA</div></div>
+        </div>
+        <div class="card">
+          <div class="hd">Allow-list policy <span class="meta">per-extension governance</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Extension</th><th>Policy</th><th>Reason / owner</th><th>Requires preload</th><th>Installed in</th><th>Status</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ govRows }}" as="g" hint-placeholder-count="6">
+                  <tr><td class="mono txt-xs">{{ g.ext }}</td><td><span class="pill {{ g.policyTone }}" style="white-space:nowrap">{{ g.policy }}</span></td><td class="txt-xs muted">{{ g.reason }}</td><td class="txt-xs">{{ g.preload }}</td><td class="txt-xs">{{ g.installedIn }}</td><td><span class="pill {{ g.statusTone }}" style="white-space:nowrap"><span class="dot"></span>{{ g.status }}</span></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Pending governance requests <span class="meta">CREATE EXTENSION outside allow-list</span></div>
+          <div class="bd" style="padding:0;overflow-x:auto">
+            <table class="table" style="width:100%">
+              <thead><tr><th>Requested</th><th>Extension</th><th>Database</th><th>Requester</th><th>Justification</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ govReqRows }}" as="r" hint-placeholder-count="2">
+                  <tr><td class="mono txt-xs">{{ r.t }}</td><td class="mono txt-xs">{{ r.ext }}</td><td class="mono txt-xs">{{ r.db }}</td><td class="txt-xs">{{ r.who }}</td><td class="txt-xs muted" style="max-width:280px">{{ r.why }}</td><td class="num" style="white-space:nowrap"><button class="btn ghost sm">Approve</button> <button class="btn ghost sm">Deny</button></td></tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+  <div style="padding:10px 20px;color:#8a8fa3;font-size:11px;display:flex;gap:8px;align-items:center">
+    <span class="pill muted"><span class="dot"></span>representative demo data</span>
+    <span>Layouts and fields mirror the live /config/parameters, /config/patroni, /config/role-settings, /config/database-settings and /config/maintenance payloads — values shown are demo. All changes are dry-run + approval.</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;liveUpdates&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "parameters", group: "config", ph: null, tick: 0 };
+  charts = {};
+  navGroups() { return window.HBZ_NAV || []; }
+  openRoute(item) {
+    var self = this, built = (window.HBZ_BUILT || {})[item.key];
+    if (built && built.page === "cf") {
+      this.setState({ tab: built.tab, ph: null }, function () { self.disposeAll(); self.scheduleCharts(); });
+    } else if (built) {
+      window.location.href = (window.HBZ_PAGE_FILES || {})[built.page] + "#" + built.tab;
+    } else {
+      this.setState({ ph: item, tab: "__ph" }, function () { self.disposeAll(); });
+    }
+  }
+  renderVals() {
+    var self = this, tab = this.state.tab;
+    var titles = {
+      parameters: ["Server Parameters", "pg_settings GUC inventory · validate changes as dry-run jobs"],
+      patroni: ["Patroni DCS Config", "Live dynamic configuration from Patroni · approval-gated apply"],
+      roles: ["Per-Role Settings", "ALTER ROLE scoped settings from pg_db_role_setting"],
+      databases: ["Per-Database Settings", "ALTER DATABASE scoped settings from pg_db_role_setting"],
+      maintenance: ["Maintenance Mode", "Patroni pause state and guardrails · validate-only"],
+      drift: ["Parameter Drift", "Live pg_settings vs DCS desired vs saved baseline"],
+      extgov: ["Extension Governance", "CREATE EXTENSION allow-list policy and approval requests"]
+    };
+    var groups = this.navGroups();
+    var curGroup = null;
+    groups.forEach(function (g) { if (g.id === self.state.group) curGroup = g; });
+    var children = ((curGroup && curGroup.items) || []).map(function (item) {
+      var built = (window.HBZ_BUILT || {})[item.key];
+      var active = self.state.ph ? self.state.ph.key === item.key : (built && built.page === "cf" && built.tab === tab);
+      return { label: item.label, cls: active ? "active" : "", onClick: function () { self.openRoute(item); } };
+    });
+    var ph = this.state.ph, isRole = tab === "roles";
+    return {
+      groups: groups.map(function (g) {
+        return { label: g.title, cls: g.id === self.state.group ? "active" : "", onClick: function () { self.setState({ group: g.id }, function () { if (g.items && g.items.length) self.openRoute(g.items[0]); }); } };
+      }),
+      children: children,
+      showPlaceholder: tab === "__ph",
+      phLabel: ph ? ph.label : "", phKey: ph ? ph.key : "", phGroup: curGroup ? curGroup.title : "",
+      pageTitle: ph ? ph.label : titles[tab][0], pageSub: ph ? ((curGroup ? curGroup.title : "") + " module") : titles[tab][1],
+      lastRefresh: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      showParameters: tab === "parameters", showPatroni: tab === "patroni", showScoped: isRole || tab === "databases",
+      showMaintenance: tab === "maintenance", showDrift: tab === "drift", showExtGov: tab === "extgov",
+      scopedTitle: isRole ? "Per-Role Settings" : "Per-Database Settings",
+      scopedDetail: isRole ? "ALTER ROLE and role/database scoped settings from pg_db_role_setting." : "ALTER DATABASE and database/role scoped settings from pg_db_role_setting.",
+      scopedRolePlaceholder: isRole ? "role name" : "optional",
+      scopedCount: isRole ? "6" : "4",
+      scopedRows: isRole ? [
+        { role: "app_readonly", db: "ae_tps_uat", param: "statement_timeout", value: "30000", raw: "statement_timeout=30000" },
+        { role: "reporting", db: "ae_tps_uat", param: "work_mem", value: "128MB", raw: "work_mem=128MB" },
+        { role: "reporting", db: "—", param: "statement_timeout", value: "0", raw: "statement_timeout=0" },
+        { role: "etl_loader", db: "ae_tps_whs_uat", param: "maintenance_work_mem", value: "1GB", raw: "maintenance_work_mem=1GB" },
+        { role: "app_write", db: "ae_common_uat", param: "lock_timeout", value: "5000", raw: "lock_timeout=5000" },
+        { role: "app_readonly", db: "ae_service_uat", param: "default_transaction_read_only", value: "on", raw: "default_transaction_read_only=on" }
+      ] : [
+        { role: "—", db: "ae_tps_uat", param: "log_min_duration_statement", value: "500", raw: "log_min_duration_statement=500" },
+        { role: "—", db: "ae_tps_whs_uat", param: "work_mem", value: "256MB", raw: "work_mem=256MB" },
+        { role: "—", db: "ae_service_uat", param: "idle_in_transaction_session_timeout", value: "60000", raw: "idle_in_transaction_session_timeout=60000" },
+        { role: "—", db: "ae_common_uat", param: "default_statistics_target", value: "200", raw: "default_statistics_target=200" }
+      ],
+      paramRows: [
+        { name: "shared_buffers", value: "8GB", ctx: "postmaster", ctxTone: "danger", source: "configuration file", restart: "clean", restartTone: "ok", unit: "8kB", desc: "Sets the number of shared memory buffers.", rowcls: "" },
+        { name: "max_connections", value: "500", ctx: "postmaster", ctxTone: "danger", source: "configuration file", restart: "pending", restartTone: "warn", unit: "—", desc: "Sets the maximum number of concurrent connections.", rowcls: "row-warn" },
+        { name: "work_mem", value: "16MB", ctx: "user", ctxTone: "ok", source: "configuration file", restart: "clean", restartTone: "ok", unit: "kB", desc: "Sets the maximum memory for query workspaces.", rowcls: "" },
+        { name: "max_wal_size", value: "2GB", ctx: "sighup", ctxTone: "warn", source: "configuration file", restart: "clean", restartTone: "ok", unit: "MB", desc: "Sets the WAL size that triggers a checkpoint.", rowcls: "" },
+        { name: "autovacuum_max_workers", value: "3", ctx: "postmaster", ctxTone: "danger", source: "default", restart: "pending", restartTone: "warn", unit: "—", desc: "Sets the maximum number of autovacuum workers.", rowcls: "row-warn" },
+        { name: "random_page_cost", value: "1.1", ctx: "user", ctxTone: "ok", source: "configuration file", restart: "clean", restartTone: "ok", unit: "—", desc: "Sets the planner's cost of a non-sequential page fetch.", rowcls: "" }
+      ],
+      dcsParamRows: [
+        { name: "archive_mode", value: "on" }, { name: "hot_standby", value: "on" }, { name: "max_connections", value: "500" },
+        { name: "max_wal_senders", value: "10" }, { name: "shared_buffers", value: "8GB" }, { name: "wal_level", value: "logical" },
+        { name: "wal_keep_size", value: "2048" }, { name: "max_replication_slots", value: "10" }
+      ],
+      dcsRaw: '{\n  "loop_wait": 10,\n  "ttl": 30,\n  "retry_timeout": 10,\n  "maximum_lag_on_failover": 1048576,\n  "postgresql": {\n    "use_pg_rewind": true,\n    "parameters": {\n      "wal_level": "logical",\n      "hot_standby": "on",\n      "max_wal_senders": 10\n    }\n  },\n  "slots": {\n    "dr_slot_tps": { "type": "physical" }\n  }\n}',
+      memberRows: [
+        { name: "prod-pgcluster-uae-00", role: "leader", tone: "ok", state: "running", lag: "0", tl: "7" },
+        { name: "prod-pgcluster-uae-01", role: "sync_standby", tone: "info", state: "streaming", lag: "0", tl: "7" },
+        { name: "prod-pgcluster-uae-02", role: "replica", tone: "muted", state: "streaming", lag: "1.2 MiB", tl: "7" }
+      ],
+      guardrails: [
+        { text: "Auto-failover is disabled while in maintenance (paused) mode — a leader crash will NOT trigger automatic promotion." },
+        { text: "Entering maintenance requires Admin role and a change-ticket reference." },
+        { text: "All standbys must be streaming with lag < 8 MiB before exit is permitted." },
+        { text: "Maintenance mode auto-expires after 4 hours to prevent an unguarded cluster." }
+      ],
+      driftRows: [
+        { param: "work_mem", node: "prod-pgcluster-uae-01", live: "16MB", desired: "64MB", baseline: "64MB", since: "3 d ago" },
+        { param: "max_wal_size", node: "prod-pgcluster-uae-01", live: "1GB", desired: "8GB", baseline: "8GB", since: "3 d ago" },
+        { param: "autovacuum_vacuum_cost_limit", node: "prod-pgcluster-uae-02", live: "200", desired: "800", baseline: "800", since: "6 d ago" },
+        { param: "log_min_duration_statement", node: "prod-pgcluster-uae-02", live: "1000", desired: "500", baseline: "500", since: "6 d ago" },
+        { param: "effective_cache_size", node: "prod-pgcluster-uae-01", live: "24GB", desired: "96GB", baseline: "96GB", since: "3 d ago" }
+      ],
+      govRows: [
+        { ext: "pg_stat_statements", policy: "allowed", policyTone: "ok", reason: "platform · observability", preload: "yes", installedIn: "all", status: "compliant", statusTone: "ok" },
+        { ext: "pgaudit", policy: "allowed", policyTone: "ok", reason: "security · compliance", preload: "yes", installedIn: "all", status: "compliant", statusTone: "ok" },
+        { ext: "pgvector", policy: "allowed", policyTone: "ok", reason: "AI platform · RAG", preload: "no", installedIn: "ae_common_uat", status: "compliant", statusTone: "ok" },
+        { ext: "postgres_fdw", policy: "conditional", policyTone: "warn", reason: "DBA approval per DB", preload: "no", installedIn: "ae_service_uat", status: "compliant", statusTone: "ok" },
+        { ext: "pg_cron", policy: "allowed", policyTone: "ok", reason: "platform · scheduling", preload: "yes", installedIn: "ae_tps_uat", status: "compliant", statusTone: "ok" },
+        { ext: "dblink", policy: "denied", policyTone: "danger", reason: "use postgres_fdw instead", preload: "no", installedIn: "ae_service_uat", status: "VIOLATION", statusTone: "danger" }
+      ],
+      govReqRows: [
+        { t: "Jul 20 14:22", ext: "http", db: "ae_service_uat", who: "svc-team", why: "Outbound webhook calls from triggers — likely denied, use app layer" },
+        { t: "Jul 19 09:40", ext: "timescaledb", db: "ae_common_uat", who: "analytics", why: "Time-series rollups for metrics dashboards" }
+      ]
+    };
+  }
+  componentDidMount() {
+    var self = this;
+    var h = (window.location.hash || "").slice(1);
+    var valid = { parameters: 1, patroni: 1, roles: 1, databases: 1, maintenance: 1, drift: 1, extgov: 1 };
+    if (h && valid[h] && h !== this.state.tab) this.setState({ tab: h, ph: null });
+    this._resize = function () { Object.values(self.charts).forEach(function (c) { c.resize(); }); };
+    window.addEventListener("resize", this._resize);
+    this._clock = setInterval(function () { self.setState({ tick: self.state.tick + 1 }); }, 5000);
+    this.scheduleCharts();
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._resize); clearInterval(this._clock); this.disposeAll(); }
+  disposeAll() { Object.values(this.charts).forEach(function (c) { c.dispose(); }); this.charts = {}; }
+  mk(id, option) {
+    var el = document.getElementById(id);
+    if (!el || !window.echarts) return;
+    if (this.charts[id]) this.charts[id].dispose();
+    var c = echarts.init(el); c.setOption(option); this.charts[id] = c;
+    var self = this;
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 150);
+    setTimeout(function () { if (self.charts[id]) self.charts[id].resize(); }, 600);
+  }
+  base() {
+    return {
+      color: ["#7c3aed", "#17a2b8", "#f59e0b", "#dc3545", "#107c10", "#a78bfa"],
+      textStyle: { fontFamily: "Poppins, sans-serif", fontSize: 11, color: "#5b6b7b" },
+      tooltip: { trigger: "axis", borderColor: "#e4e4ec", textStyle: { fontSize: 11 } },
+      grid: { left: 52, right: 16, top: 30, bottom: 26 }
+    };
+  }
+  donut(id, data, center, sub) {
+    this.mk(id, Object.assign(this.base(), {
+      tooltip: { trigger: "item" },
+      legend: { bottom: 0, icon: "circle", itemWidth: 8 },
+      series: [{ type: "pie", radius: ["48%", "70%"], center: ["50%", "44%"], label: { show: false }, data: data }],
+      graphic: [{ type: "text", left: "center", top: "38%", style: { text: center, fontSize: 18, fontWeight: 700, fill: "#212529", fontFamily: "Times New Roman" } },
+                { type: "text", left: "center", top: "50%", style: { text: sub, fontSize: 11, fill: "#8a8fa3" } }]
+    }));
+  }
+  hbar(id, labels, data, opts) {
+    opts = opts || {};
+    this.mk(id, Object.assign(this.base(), {
+      grid: { left: opts.left || 130, right: 62, top: 10, bottom: 20 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: opts.fmt },
+      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      yAxis: { type: "category", inverse: true, data: labels, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "bar", data: data, barWidth: 13, itemStyle: { color: opts.color || "#7c3aed", borderRadius: [0, 7, 7, 0] }, label: { show: true, position: "right", color: "#5b6b7b", fontSize: 10, formatter: opts.labelFmt } }]
+    }));
+  }
+  scheduleCharts(attempt) {
+    var self = this, tab = this.state.tab;
+    var probe = { parameters: "cf-context", patroni: "cf-timing", roles: "cf-scoped-role", databases: "cf-scoped-role", maintenance: "cf-member-role", drift: "cf-drift-cat" }[tab];
+    if (!probe) return;
+    if (window.echarts && document.getElementById(probe)) { this.renderCharts(); return; }
+    if ((attempt || 0) < 40) requestAnimationFrame(function () { setTimeout(function () { if (self.state.tab === tab) self.scheduleCharts((attempt || 0) + 1); }, 50); });
+  }
+  renderCharts() {
+    var self = this;
+    if (!window.echarts) { setTimeout(function () { self.renderCharts(); }, 200); return; }
+    var tab = this.state.tab, cols = ["#7c3aed", "#17a2b8", "#f59e0b", "#107c10", "#a78bfa"];
+    if (tab === "parameters") {
+      this.donut("cf-context", [
+        { name: "user", value: 210, itemStyle: { color: "#107c10" } },
+        { name: "sighup", value: 78, itemStyle: { color: "#f59e0b" } },
+        { name: "postmaster", value: 27, itemStyle: { color: "#dc3545" } },
+        { name: "superuser", value: 26, itemStyle: { color: "#17a2b8" } }
+      ], "341", "params");
+      this.hbar("cf-source", ["configuration file", "default", "override", "environment"],
+        [{ value: 186, itemStyle: { color: cols[0] } }, { value: 128, itemStyle: { color: cols[1] } }, { value: 19, itemStyle: { color: cols[2] } }, { value: 8, itemStyle: { color: cols[3] } }],
+        { left: 120, labelFmt: "{c}" });
+      this.donut("cf-restart", [
+        { name: "Clean", value: 338, itemStyle: { color: "#107c10" } },
+        { name: "Pending restart", value: 3, itemStyle: { color: "#f59e0b" } }
+      ], "3", "pending");
+    } else if (tab === "patroni") {
+      this.hbar("cf-timing", ["Retry timeout", "TTL", "Loop wait"],
+        [{ value: 10, itemStyle: { color: "#f59e0b" } }, { value: 30, itemStyle: { color: "#17a2b8" } }, { value: 10, itemStyle: { color: "#107c10" } }],
+        { left: 110, fmt: function (v) { return v + " s"; }, labelFmt: "{c}s" });
+      this.donut("cf-mode", [
+        { name: "Normal", value: 1, itemStyle: { color: "#107c10" } },
+        { name: "Paused", value: 0, itemStyle: { color: "#f59e0b" } }
+      ], "Normal", "Patroni");
+    } else if (tab === "roles" || tab === "databases") {
+      if (tab === "roles") {
+        this.hbar("cf-scoped-role", ["app_readonly", "reporting", "etl_loader", "app_write"],
+          [{ value: 2, itemStyle: { color: cols[0] } }, { value: 2, itemStyle: { color: cols[1] } }, { value: 1, itemStyle: { color: cols[2] } }, { value: 1, itemStyle: { color: cols[3] } }],
+          { left: 110, labelFmt: "{c}" });
+        this.hbar("cf-scoped-param", ["statement_timeout", "work_mem", "maintenance_work_mem", "lock_timeout", "read_only"],
+          [{ value: 2, itemStyle: { color: cols[0] } }, { value: 1, itemStyle: { color: cols[1] } }, { value: 1, itemStyle: { color: cols[2] } }, { value: 1, itemStyle: { color: cols[3] } }, { value: 1, itemStyle: { color: cols[4] } }],
+          { left: 150, labelFmt: "{c}" });
+      } else {
+        this.hbar("cf-scoped-role", ["ae_tps_uat", "ae_tps_whs_uat", "ae_service_uat", "ae_common_uat"],
+          [{ value: 1, itemStyle: { color: cols[0] } }, { value: 1, itemStyle: { color: cols[1] } }, { value: 1, itemStyle: { color: cols[2] } }, { value: 1, itemStyle: { color: cols[3] } }],
+          { left: 130, labelFmt: "{c}" });
+        this.hbar("cf-scoped-param", ["log_min_duration", "work_mem", "idle_in_tx_timeout", "stats_target"],
+          [{ value: 1, itemStyle: { color: cols[0] } }, { value: 1, itemStyle: { color: cols[1] } }, { value: 1, itemStyle: { color: cols[2] } }, { value: 1, itemStyle: { color: cols[3] } }],
+          { left: 150, labelFmt: "{c}" });
+      }
+    } else if (tab === "maintenance") {
+      this.donut("cf-member-role", [
+        { name: "leader", value: 1, itemStyle: { color: "#107c10" } },
+        { name: "sync_standby", value: 1, itemStyle: { color: "#17a2b8" } },
+        { name: "replica", value: 1, itemStyle: { color: "#a78bfa" } }
+      ], "3", "members");
+      this.hbar("cf-member-lag", ["prod-pgcluster-uae-00", "prod-pgcluster-uae-01", "prod-pgcluster-uae-02"],
+        [{ value: 0, itemStyle: { color: "#107c10" } }, { value: 0, itemStyle: { color: "#107c10" } }, { value: 1.2, itemStyle: { color: "#f59e0b" } }],
+        { left: 70, fmt: function (v) { return v + " MiB"; }, labelFmt: "{c}" });
+    } else if (tab === "drift") {
+      this.donut("cf-drift-cat", [
+        { name: "memory", value: 2, itemStyle: { color: "#dc3545" } },
+        { name: "wal", value: 1, itemStyle: { color: "#f59e0b" } },
+        { name: "autovacuum", value: 1, itemStyle: { color: "#7c3aed" } },
+        { name: "logging", value: 1, itemStyle: { color: "#17a2b8" } }
+      ], "5", "drifted");
+      this.hbar("cf-drift-node", ["prod-pgcluster-uae-01", "prod-pgcluster-uae-02", "prod-pgcluster-uae-00"],
+        [{ value: 3, itemStyle: { color: "#dc3545" } }, { value: 2, itemStyle: { color: "#f59e0b" } }, { value: 0, itemStyle: { color: "#107c10" } }],
+        { left: 70, labelFmt: "{c}" });
+    }
+  }
+}
+</script>
+</body>
+</html>
